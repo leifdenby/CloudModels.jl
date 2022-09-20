@@ -1,0 +1,9 @@
+name = "CloudModels"
+uuid = "35fd74d2-8ea6-4cd7-8253-7fa514221aa5"
+authors = ["leif <leif@denby.eu>"]
+version = "0.1.0"
+
+[deps]
+ComponentArrays = "b0b7db55-cfe3-40fc-9ded-d10e2dbeff66"
+LinearInterpolations = "b20c7882-2490-4592-a606-fbbfe9e745e8"
+OrderedCollections = "bac558e1-5e72-5ebc-8fee-abe8a469f55d"
