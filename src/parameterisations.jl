@@ -83,7 +83,3 @@ function calc_water_vapour_diffusion_coefficient(T, p)
 
     return a * (T / T0) ^ b * p0 / p
 end
-
-
-
-export calc_qv_sat, calc_dynamic_viscosity, calc_thermal_conductivity_coefficient, calc_water_vapour_diffusion_coefficient

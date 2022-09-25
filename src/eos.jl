@@ -1,7 +1,6 @@
-include("constants.jl")
 
 
-function calc_mixture_density(p, T, qd, qv, ql, qr, qi)
+function calc_mixture_density(p, T, qv, ql, qr, qi)
     """
     Compute the mixture density from the import full equation of state
 
@@ -11,6 +10,7 @@ function calc_mixture_density(p, T, qd, qv, ql, qr, qi)
         rho_l: density of liquid water
         rho_i: density of ice
     """
+    qd = 1.0 - qv - ql - qr - qi
 
     rho_inv = (
         (qd * R_d + qv * R_v) * T / p + (ql + qr) / rho_l + qi / rho_i
@@ -18,6 +18,3 @@ function calc_mixture_density(p, T, qd, qv, ql, qr, qi)
 
     return 1.0 / rho_inv
 end
-
-
-export calc_mixture_density

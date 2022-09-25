@@ -37,58 +37,6 @@ function calc_cv_m(F)
     return cv_d * qd + (ql + qr) * cv_l + qv * cv_v
 end
 
-function dFdt(F, t)
-
-    qv = F[:q_v]
-    ql = F[:q_l]
-    qr = F[:q_r]
-    qi = F[:q_i]
-
-    # the integrator may have put us below zero, this is non-conservative,
-    # but I don't have any other options here since I can't modify the
-    # integrator's logic
-    if ql < 0.0
-        ql = 0.0
-        F[:q_l] = ql
-    end
-
-    qd = 1.0 - qv - ql - qr - qi
-    T = F[:T]
-    p = F[:p]
-
-    # mixture density
-    # TODO: reintroduce the use of `extra_vars` somehow
-    rho = calc_mixture_density(qd, qv, ql, qi, qr, p, T)
-    # gas density
-    rho_g = calc_mixture_density(qd, qv, 0.0, 0.0, 0.0, p, T)
-
-    dql_dt = _dql_dt__cond_evap(rho, rho_g, qv, ql, T, p)
-
-    qg = qv + qd
-    dqr_dt_1 = _dqr_dt__autoconversion(ql, qg, rho_g)
-    dqr_dt_2 = _dqr_dt__accretion(ql, qg, qr, rho_g)
-    dqr_dt_condevap = _dqr_dt__cond_evap(qv, qr, rho, p, T)
-
-    dqr_dt = dqr_dt_1 + dqr_dt_2
-
-    dFdt = zero(F)
-    dFdt[:q_l] = dql_dt - dqr_dt
-    dFdt[:q_v] = -dql_dt - dqr_dt_condevap
-    dFdt[:q_r] = dqr_dt + dqr_dt_condevap
-
-    if model_constraint == "isometric"
-        c_m = calc_cv_m(F)
-    elseif model_constraint == "isobaric"
-        c_m = calc_cp_m(F)
-    else
-        throw("Model constraint mode '$(model_constraint)%s' not implemented")
-    end
-
-    dFdt[:T] = Lv / c_m * dql_dt
-
-    return dFdt
-end
-
 """
 Create rain droplets through collision and coalescence of cloud
 droplets
@@ -106,14 +54,19 @@ function _dqr_dt__autoconversion(ql, qg, rho_g)
     return dqr_dt
 end
 
-function _dqr_dt__accretion(rho_g, ql, qg, qr)
+function _dqr_dt__accretion(ql, qg, qr, rho_g)
+    # if there is no rain there is nothing to accrete onto
+    if qr == 0.0
+        return 0.0
+    end
+
     # TODO: rederive these equations to verify that they are correct
     G3p5 = 3.32399614155  # = Gamma(3.5)
     N0r = 1.0e7  # [m^-4]
     a_r = 201.0  # [m^.5 s^-1]
     rho0 = 1.12
 
-    lambda_r = (pi * (qg * rho_l) / (qr * rho_g) * N0r) ^ (1.0 / 4.0)
+    λr = (pi * (qg * rho_l) / (qr * rho_g) * N0r) ^ (1.0 / 4.0)
 
     dqr_dt = (
         pi
@@ -122,7 +75,7 @@ function _dqr_dt__accretion(rho_g, ql, qg, qr)
         * a_r
         * sqrt(rho0 / rho_g)
         * G3p5
-        * lambda_r ^ (-3.5)
+        * λr ^ (-3.5)
         * ql
     )
 
@@ -153,7 +106,7 @@ function _dql_dt__cond_evap(rho, rho_g, qv, ql, T, p)
     end
 
     Ka = calc_thermal_conductivity_coefficient(T)
-    Fk = (Lv / (R_v * T) - 1) * Lv / (Ka * T) * rho_l
+    Fk = (L_v / (R_v * T) - 1) * L_v / (Ka * T) * rho_l
 
     pv_sat = calc_pv_sat(T)
     Dv = calc_water_vapour_diffusion_coefficient(T, p)
@@ -201,7 +154,7 @@ function _dqr_dt__cond_evap(qv, qr, rho, T, p)
 
     # air condutivity and diffusion effects
     Ka = calc_thermal_conductivity_coefficient(T)
-    Fk = (Lv / (R_v * T) - 1) * Lv / (Ka * T) * rho_l
+    Fk = (L_v / (R_v * T) - 1) * L_v / (Ka * T) * rho_l
 
     pv_sat = calc_pv_sat(T=T)
     Dv = calc_water_vapour_diffusion_coefficient(T=T, p=p)
@@ -222,9 +175,54 @@ function _dqr_dt__cond_evap(qv, qr, rho, T, p)
     return dqr_dt
 end
 
-dFdt_microphysics = dFdt
 
-export dFdt_microphysics
+function dFdt_microphysics(F, t)
 
-F0 = ComponentArray(T=300, q_v=13.0e-3, q_l=0.1, q_r=0.0, q_i=0.0, p=100e3)
-dFdt_microphysics(F0, 0)
+    qv = F[:q_v]
+    ql = F[:q_l]
+    qr = F[:q_r]
+    qi = F[:q_i]
+
+    # the integrator may have put us below zero, this is non-conservative,
+    # but I don't have any other options here since I can't modify the
+    # integrator's logic
+    if ql < 0.0
+        ql = 0.0
+        F[:q_l] = ql
+    end
+
+    qd = 1.0 - qv - ql - qr - qi
+    T = F[:T]
+    p = F[:p]
+
+    # mixture density
+    rho = calc_mixture_density(p, T, qv, ql, qi, qr)
+    # gas density
+    rho_g = calc_mixture_density(p, T, qv, 0.0, 0.0, 0.0)
+
+    dql_dt = _dql_dt__cond_evap(rho, rho_g, qv, ql, T, p)
+
+    qg = qv + qd
+    dqr_dt_1 = _dqr_dt__autoconversion(ql, qg, rho_g)
+    dqr_dt_2 = _dqr_dt__accretion(ql, qg, qr, rho_g)
+    dqr_dt_condevap = _dqr_dt__cond_evap(qv, qr, rho, p, T)
+
+    dqr_dt = dqr_dt_1 + dqr_dt_2
+
+    dFdt = zero(F)
+    dFdt[:q_l] = dql_dt - dqr_dt
+    dFdt[:q_v] = -dql_dt - dqr_dt_condevap
+    dFdt[:q_r] = dqr_dt + dqr_dt_condevap
+
+    if model_constraint == "isometric"
+        c_m = calc_cv_m(F)
+    elseif model_constraint == "isobaric"
+        c_m = calc_cp_m(F)
+    else
+        throw("Model constraint mode '$(model_constraint)%s' not implemented")
+    end
+
+    dFdt[:T] = L_v / c_m * dql_dt
+
+    return dFdt
+end
