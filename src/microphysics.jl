@@ -1,6 +1,3 @@
-include("eos.jl")
-include("parameterisations.jl")
-
 N0 = 200 * 1.0e6  # initial aerosol number concentration [m-3]
 r0 = 0.1e-6  # cloud droplet initial radius
 

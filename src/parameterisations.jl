@@ -1,5 +1,3 @@
-include("constants.jl")
-
 p0vs= 611.2  # [Pa]
 a0_lq= 17.67
 a1_lq= -32.19

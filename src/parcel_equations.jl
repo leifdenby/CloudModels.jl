@@ -1,5 +1,3 @@
-include("microphysics.jl")
-
 gamma=0.5
 C_D=0.506
 beta=0.2
