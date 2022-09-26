@@ -57,6 +57,8 @@ end
 
 """
 Linear model of thermal conductivity
+
+T temperature in [K]
 """
 function calc_thermal_conductivity_coefficient(T)
     a_K= 8.0e-5
