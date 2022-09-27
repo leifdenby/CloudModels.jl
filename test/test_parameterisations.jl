@@ -1,11 +1,13 @@
 using Test
 using CloudModels
+using Unitful
 
 @testset "parameterisations" begin
     @testset "viscosity" begin
-        T0 = 300.0
+        T0 = 300.0u"K"
         μ0 = CloudModels.calc_dynamic_viscosity(T0)
-        μ1 = CloudModels.calc_dynamic_viscosity(T0 + 5.0)
+        @test unit(μ0) === u"kg/m/s"
+        μ1 = CloudModels.calc_dynamic_viscosity(T0 + 5.0u"K")
         # dynamic viscosity should go up with temperature
         @test μ1 > μ0
     end

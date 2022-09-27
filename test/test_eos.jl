@@ -1,15 +1,16 @@
 using Test
 using CloudModels
+using Unitful
 
 @testset "EoS" begin
-    p0 = 101.325e3  # [hPa]
-    T0 = 273.15 + 15.0  # [K]
+    p0 = 101.325e3u"Pa"
+    T0 = (273.15 + 15.0)u"K"
     qv0 = 0.0  # [kg/kg]
     qr0 = 0.0
     ql0 = 0.0
     qi0 = 0.0
     rho0 = CloudModels.calc_mixture_density(p0, T0, qv0, ql0, qr0, qi0)
-    @test isapprox(rho0, 1.225; atol=0.001)
+    @test isapprox(rho0, 1.225u"kg/m^3"; atol=0.001u"kg/m^3")
 
     # more water vapour makes the mixture lighter
     rho1 = CloudModels.calc_mixture_density(p0, T0, qv0 + 1.0e-3, ql0, qr0, qi0)

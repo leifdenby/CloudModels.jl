@@ -1,5 +1,3 @@
-using ComponentArrays
-using LinearInterpolations
 
 y0 = ComponentArray(r=100, w=2)
 y1 = ComponentArray(r=200, w=-1)

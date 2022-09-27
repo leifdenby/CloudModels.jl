@@ -6,10 +6,10 @@ Constants:
     L_s: latent heat sublimation (vapour -> solid)
 """
 
+L_v = 2.5008e6 * u"J/kg"
+L_s = 2.8345e6 * u"J/kg"
 R_d = 287.05 * u"J/K/kg"
 R_v = 461.51 * u"J/K/kg"
-L_v = 2.5008e6 * u"J/K/kg"
-L_s = 2.8345e6 * u"J/K/kg"
 cp_d = 1005.46 * u"J/K/kg"
 cv_d = 717.60 * u"J/K/kg"
 cp_v = 1859.0 * u"J/K/kg"
