@@ -44,6 +44,8 @@ function (prof::ReferenceAtmosphere)(z, var_name::Symbol)
         return calc_temperature(z, prof)
     elseif var_name == :p
         return calc_pressure(z, prof)
+    elseif var_name == :rho
+        return calc_density(z, prof)
     elseif var_name == :qv
         return 0.0
     else

@@ -1,6 +1,5 @@
 gamma=0.5
 C_D=0.506
-beta=0.2
 l_pr=100.0u"m"
 
 
@@ -15,7 +14,7 @@ State variables:
     r: cloud radius
     rho_c: cloud density
 """
-function dw_dz(p, w_c, r_c, T_c, qd_c, qv_c, ql_c, qi_c, qr_c, rho_e, mu)
+function calc_dw_dz(p, w_c, r_c, T_c, qd_c, qv_c, ql_c, qi_c, qr_c, rho_e, mu)
     rho_c = calc_mixture_density(p, T_c, qd_c, qv_c, ql_c, qi_c, qr_c)
     B = (rho_e - rho_c) / rho_e
 
@@ -30,7 +29,7 @@ function dw_dz(p, w_c, r_c, T_c, qd_c, qv_c, ql_c, qi_c, qr_c, rho_e, mu)
     )
 end
 
-function dT_dz(
+function calc_dT_dz(
     r_c,
     T_c,
     qd_c,
@@ -95,7 +94,7 @@ function dT_dz(
     return -g / c_cm + mu * Ds / c_cm - 1.0 / c_cm * dedz_q
 end
 
-function dr_dz(
+function calc_dr_dz(
     p,
     w_c,
     r_c,
@@ -212,12 +211,12 @@ function parcel_equations!(dFdz, F, z, params)
     # calculate entrainment rate
     rho_c = calc_mixture_density(p, T, q_d, q_v, q_l, q_i, q_r)
     B = (rho_e - rho_c) / rho_e
-    mu = beta / r
+    mu = params.β / r
 
     # 1. Estimate change in vertical velocity with initial state
-    dwdz_ = dw_dz(p, w, r, T, q_d, q_v, q_l, q_r, q_i, rho_e, mu)
+    dwdz = calc_dw_dz(p, w, r, T, q_d, q_v, q_l, q_r, q_i, rho_e, mu)
 
-    dFdz[:w] = dwdz_
+    dFdz[:w] = dwdz
 
     # assume no condesates present in environment
     ql_e, qr_e, qi_e = 0.0, 0.0, 0.0
@@ -257,33 +256,34 @@ function parcel_equations!(dFdz, F, z, params)
     dFdz_micro = dFdt_micro / w  # w = dz/dt
     # temperature effect will be determined from temperature equation,
     # microphysics only provides changes due to microphysics itself over short
-    # time-increment of rise
-    dFdz_micro[:T] = 0.0u"K/m"
-    dFdz_ = zero(dFdz)
-    dFdz_ += dFdz_micro
-    dFdz_ += dFdz_entrain__q
+    # time-increment of rise, so we only include the changes to the microphysics
+    # species
+    for v in [:q_v, :q_l, :q_r, :q_i]
+        dFdz[v] += dFdz_micro[v]
+        dFdz[v] += dFdz_entrain__q[v]
+    end
 
     # 3. Estimate temperature change forgetting about phase-changes for now
     # (i.e. considering only adiabatic adjustment and entrainment)
 
     # in terms of the thermodynamics cloud-water and rain-water are treated identically
-    dql_c__dz = dFdz_[:q_l] + dFdz_[:q_r]
-    dqi_c__dz = dFdz_[:q_i]
-    dqv_c__dz = dFdz_[:q_v]
+    dql_c__dz = dFdz[:q_l] + dFdz[:q_r]
+    dqi_c__dz = dFdz[:q_i]
+    dqv_c__dz = dFdz[:q_v]
     ql_c = q_l + q_r
 
-    dTdz_s = dT_dz(r, T, q_d, q_v, ql_c, q_i, dql_c__dz, dqi_c__dz, dqv_c__dz, T_e, qv_e, mu)
+    dTdz_s = calc_dT_dz(r, T, q_d, q_v, ql_c, q_i, dql_c__dz, dqi_c__dz, dqv_c__dz, T_e, qv_e, mu)
 
-    dFdz_[:T] += dTdz_s
-    dTdz_ = dFdz_[:T]
+    dFdz[:T] += dTdz_s
+    dTdz = dFdz[:T]
 
     # 4. Use post microphysics state (and phase changes from microphysics) to estimate radius change
-    drdz_ = dr_dz(p, w, r, T, q_d, q_v, q_l, q_r, q_i, dqv_c__dz, dql_c__dz, dqi_c__dz, dTdz_, dwdz_, mu)
+    drdz = calc_dr_dz(p, w, r, T, q_d, q_v, q_l, q_r, q_i, dqv_c__dz, dql_c__dz, dqi_c__dz, dTdz, dwdz, mu)
 
-    dFdz_[:r] = drdz_
+    dFdz[:r] = drdz
 
     # 5. Estimate fraction of rain that leaves parcel
     dqr_dz__rainout = calc_dqr_dz__rainout(rho_c, q_r, w)
-    dFdz_[:q_r] -= dqr_dz__rainout
-    dFdz_[:q_pr] = dqr_dz__rainout
+    dFdz[:q_r] -= dqr_dz__rainout
+    dFdz[:q_pr] = dqr_dz__rainout
 end
