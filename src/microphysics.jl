@@ -1,4 +1,4 @@
-N0 = 200 * 1.0e6u"1/m^3"  # initial aerosol number concentration [m-3]
+N0i = 200 * 1.0e6u"1/m^3"  # initial aerosol number concentration [m-3]
 r0 = 0.1e-6u"m"  # cloud droplet initial radius
 
 model_constraint = "isobaric"
@@ -95,7 +95,7 @@ function _dql_dt__cond_evap(qv, ql, rho, T, p)
     # number of aerosols stays constant (to add aerosol activation only a
     # fraction if the original present aerosols would be "activated" at
     # this point)
-    Nc = N0
+    Nc = N0i
 
     if ql == 0.0
         if Sw > 1.0
@@ -104,7 +104,7 @@ function _dql_dt__cond_evap(qv, ql, rho, T, p)
             r_c = 0.0u"m"
         end
     else
-        r_c = (ql * rho / (4.0 / 3.0 * pi * N0 * rho_l)) ^ (1.0 / 3.0)
+        r_c = (ql * rho / (4.0 / 3.0 * pi * N0i * rho_l)) ^ (1.0 / 3.0)
         # droplet's should at least be as big as their initial (aerosol) size
         r_c = max(r0, r_c)
     end
@@ -185,7 +185,7 @@ function _dqr_dt__cond_evap(qv, qr, rho, T, p)
 end
 
 
-function dFdt_microphysics(F, t)
+function dFdt_microphysics!(dFdt, F, t)
 
     qv = F[:q_v]
     ql = F[:q_l]
@@ -218,7 +218,6 @@ function dFdt_microphysics(F, t)
 
     dqr_dt = dqr_dt_1 + dqr_dt_2
 
-    dFdt = zero(F)
     dFdt[:q_l] = dql_dt - dqr_dt
     dFdt[:q_v] = -dql_dt - dqr_dt_condevap
     dFdt[:q_r] = dqr_dt + dqr_dt_condevap
@@ -232,6 +231,4 @@ function dFdt_microphysics(F, t)
     end
 
     dFdt[:T] = L_v / c_m * dql_dt
-
-    return dFdt
 end

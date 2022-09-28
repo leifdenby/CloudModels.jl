@@ -10,6 +10,7 @@ include("eos.jl")
 include("parameterisations.jl")
 include("microphysics.jl")
 include("profiles.jl")
+include("parcel_equations.jl")
 
 include("Reference/Reference.jl")
 

@@ -1,11 +1,11 @@
 gamma=0.5
 C_D=0.506
 beta=0.2
-l_pr=100.0
+l_pr=100.0u"m"
 
 
 # droplet-size distribution constant
-N0 = 1.0e7  # [m^-4]
+N0 = 1.0e7u"m^-4"  # [m^-4]
 
 """
 Momentum equation
@@ -56,13 +56,14 @@ function dT_dz(
     """
 
     # latent-heat corrected for change in temperature
-    T00 = 273.15
     L_v_ = L_v + (cp_v - cp_l) * (T_c - T00)
     L_s_ = L_s + (cp_v - cp_i) * (T_c - T00)
     L_f_ = L_v + (cp_l - cp_i) * (T_c - T00)
 
-    @assert qi_c == 0.0
     # equations below don't work with ice yet
+    if qi_c > 0.0
+        throw("ice not implemented yet")
+    end
 
     c_cm_p = cp_d * qd_c + cp_l * (qv_c + ql_c + qi_c)
 
@@ -168,9 +169,9 @@ function calc_dqr_dz__rainout(rho_c, q_r, w)
 
     # fall-speed coefficient taken from the r > 0.5mm expression for
     # fall-speed from Herzog '98
-    a_r = 201.0
+    a_r = 201.0u"m^.5 / s"
     # reference density
-    rho0 = 1.12
+    rho0 = 1.12u"kg/m^3"
 
     # charateristic velocity, XXX: this is definitely wrong, but couldn't
     # work out how to do the integral at the time
@@ -183,8 +184,8 @@ function calc_dqr_dz__rainout(rho_c, q_r, w)
 end
 
 
-function parcel_equations(dFdz, F, z, p)
-    environment = p[:environment]
+function parcel_equations!(dFdz, F, z, params)
+    environment = params[:environment]
     r = F[:r]
     w = F[:w]
     T = F[:T]
@@ -249,16 +250,21 @@ function parcel_equations(dFdz, F, z, p)
 
     # 2. estimate new state from phase changes predicted by microphysics
     F[:p] = p  # make sure that pressure is set since the microphysics needs it
-    dFdt_micro = dFdt_microphysics(F, z)  # passing in `z` as `t` doesn't make sense physically, but it will just be used for plotting later
+
+    dFdt_micro = ComponentArray(Dict([ v => 0.0 * unit(F[v] * u"1/s") for v in keys(F)]))
+    dFdt_microphysics!(dFdt_micro, F, 0.0u"s")
 
     dFdz_micro = dFdt_micro / w  # w = dz/dt
-    # temperature effect will be determined from temperature equation, microphysics simply provides gradients
-    dFdz_micro[:T] = 0.0  
+    # temperature effect will be determined from temperature equation,
+    # microphysics only provides changes due to microphysics itself over short
+    # time-increment of rise
+    dFdz_micro[:T] = 0.0u"K/m"
     dFdz_ = zero(dFdz)
     dFdz_ += dFdz_micro
     dFdz_ += dFdz_entrain__q
 
-    # 3. Estimate temperature change forgetting about phase-changes for now (i.e. considering only adiabatic adjustment and entrainment)
+    # 3. Estimate temperature change forgetting about phase-changes for now
+    # (i.e. considering only adiabatic adjustment and entrainment)
 
     # in terms of the thermodynamics cloud-water and rain-water are treated identically
     dql_c__dz = dFdz_[:q_l] + dFdz_[:q_r]
@@ -277,10 +283,7 @@ function parcel_equations(dFdz, F, z, p)
     dFdz_[:r] = drdz_
 
     # 5. Estimate fraction of rain that leaves parcel
-    rho_c = calc_mixture_density(p, T, q_v, q_l, q_i, q_r)
     dqr_dz__rainout = calc_dqr_dz__rainout(rho_c, q_r, w)
     dFdz_[:q_r] -= dqr_dz__rainout
     dFdz_[:q_pr] = dqr_dz__rainout
 end
-
-using ComponentArrays

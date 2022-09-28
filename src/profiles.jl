@@ -9,17 +9,17 @@ p0 = 101325.0 * u"Pa"
 T0 = p0 / (rho0 * R_d) |> u"K"
 κ = R_d / cp_d
 
-StandardIsothermalAtmosphere = ReferenceAtmosphere(rho0, p0, 0.0u"K/km")
-StandardIsentropicAtmosphere = ReferenceAtmosphere(rho0, p0, -g/cp_d)
-ConstantDensityAtmospere = ReferenceAtmosphere(rho0, p0, -g/R_d)
+StandardIsothermalAtmosphere() = ReferenceAtmosphere(rho0, p0, 0.0u"K/km")
+StandardIsentropicAtmosphere() = ReferenceAtmosphere(rho0, p0, -g/cp_d)
+ConstantDensityAtmospere() = ReferenceAtmosphere(rho0, p0, -g/R_d)
 
 function calc_temperature(z, prof::ReferenceAtmosphere)
     return T0 + prof.dTdz * z
 end
 
 function calc_density(z, prof::ReferenceAtmosphere)
-    if prof.dTdz == 0.0
-        return rho0 * exp(-z * g * R_d * T0)
+    if prof.dTdz == 0.0u"K/km"
+        return rho0 * exp(-z * g / (T0 * R_d))
     else
         α = g / (prof.dTdz * R_d)
         T = calc_temperature(z, prof)
@@ -37,4 +37,16 @@ function calc_potential_temperature(z, prof::ReferenceAtmosphere)
     T = calc_temperature(z, prof)
     p = calc_pressure(z, prof)
     return T * (p / p0) ^ (-κ)
+end
+
+function (prof::ReferenceAtmosphere)(z, var_name::Symbol)
+    if var_name == :T
+        return calc_temperature(z, prof)
+    elseif var_name == :p
+        return calc_pressure(z, prof)
+    elseif var_name == :qv
+        return 0.0
+    else
+        throw("Not implemented: `$(var_name)`")
+    end
 end

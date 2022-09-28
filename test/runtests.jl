@@ -2,6 +2,7 @@ using Test
 using CloudModels
 using ComponentArrays
 
+include("test_parcel_equations.jl")
 include("test_parameterisations.jl")
 include("test_eos.jl")
 include("test_microphysics.jl")
