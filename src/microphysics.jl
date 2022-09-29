@@ -223,6 +223,14 @@ function dFdt_microphysics!(dFdt, F, t)
     dFdt[:q_v] = -dql_dt - dqr_dt_condevap
     dFdt[:q_r] = dqr_dt + dqr_dt_condevap
 
+
+    for v in [:q_l, :q_v, :q_r]
+        if F[v] < 0.0
+            @show dFdt v
+            throw("oh no")
+        end
+    end
+
     if model_constraint == "isometric"
         c_m = calc_cv_m(F)
     elseif model_constraint == "isobaric"
