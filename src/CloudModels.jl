@@ -3,6 +3,7 @@ module CloudModels
 using Unitful
 using ComponentArrays
 using LinearInterpolations
+using Plots
 
 
 include("constants.jl")

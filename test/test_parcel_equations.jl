@@ -64,16 +64,12 @@ function nounit_parcel_equations!(dFdt, F, params, t)
     dFdt[:z] = dzdt
 end
 
-@testset "integration" begin
-    env_profile = CloudModels.ProfileRICO.RICO_profile()
-    params = (environment=env_profile, β=0.2)
-    F = make_initial_condition(env_profile, 300.0)
+env_profile = CloudModels.ProfileRICO.RICO_profile()
+params = (environment=env_profile, β=0.2)
+F = make_initial_condition(env_profile, 300.0)
 
-    prob = ODEProblem(nounit_parcel_equations!, F, [0.0, 1000.0], params)
-    sol = solve(prob, Euler(), saveat=0.1, callback=setup_callbacks(), dt=1.0)
-    plot_profile(sol)
+prob = ODEProblem(nounit_parcel_equations!, F, [0.0, 1000.0], params)
+sol = solve(prob, Euler(), saveat=0.1, callback=setup_callbacks(), dt=1.0)
+CloudModels.plot_profile(sol)
 
-    g(sol, v) = getindex.(sol.u, v)
-    #check that some condensation has occoured :)
-    @test sum(g(sol, :q_l)) > 0.0
-end
+g(sol, v) = getindex.(sol.u, v)

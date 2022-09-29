@@ -1,4 +1,3 @@
-
 function plot_profile(sol)
     desc = Dict(
         :q_v => "water vapour concentation [g/kg]",
@@ -11,6 +10,8 @@ function plot_profile(sol)
     pg(sol, v) = plot(g(sol, v), g(sol, :z), xlabel=desc[v], label="")
     sg(sol, v, s) = g(sol, v) .* s
 
+    params = sol.prob.p
+
     z_prof = g(sol, :z)
     p_env = params.environment.(z_prof * u"m", :p) .|> u"Pa"
     T_env = params.environment.(z_prof * u"m", :T) .|> u"K"
@@ -19,6 +20,11 @@ function plot_profile(sol)
     qv_sat_env = CloudModels.calc_qv_sat.(T_env, p_env)
     qv_sat_cld = CloudModels.calc_qv_sat.(T_cld, p_env)
     rh_prof = g(sol, :q_v) ./ qv_sat_cld
+    ρ_env = params.environment.(z_prof * u"m", :rho)
+
+    qv_cld, ql_cld, qr_cld, qi_cld = g(sol, :q_v), g(sol, :q_l), g(sol, :q_r), g(sol, :q_i)
+    qd_cld = 1.0 .- (qv_cld- ql_cld - qr_cld - qi_cld)
+    ρ_cld = CloudModels.calc_mixture_density.(p_env, T_cld, qd_cld, qv_cld, ql_cld, qr_cld, qi_cld)
 
     p_temp = pg(sol, :T)
     plot!(p_temp, ustrip.(T_env), ustrip.(z_prof), label="env")
@@ -37,7 +43,8 @@ function plot_profile(sol)
         plt_qv,
         plot(sg(sol, :q_l, 1.0e3), z_prof, xlabel=desc[:q_l], label=""),
         plot_rh,
-        layout=(3, 2),
+        plot(ustrip.(ρ_cld - ρ_env), z_prof, xlabel="Δρ [kg/m^3]"),
+        layout=(4, 2),
         size=(600, 1000),
         margin=20Plots.px
     )
