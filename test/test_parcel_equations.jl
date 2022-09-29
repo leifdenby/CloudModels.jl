@@ -19,6 +19,28 @@ end
 
 #F = ComponentArray(r=100u"m", w=1.0u"m/s", T=300u"K", q_v=13.0e-3, q_l=0.0, q_r=0.0, q_i=0.0, p=100e3u"Pa", q_pr=0.0)
 
+
+function setup_callbacks()
+    condition(u, t, integrator) = u.z - 2000.0
+    cb_ztop = ContinuousCallback(condition,terminate!)
+
+    mphys_zero_cbs = [
+        DiscreteCallback((u, t, i) -> u[v] < 0.0, terminate!) for v in [:q_v, :q_r, :q_l]
+    ]
+    CallbackSet(cb_ztop, mphys_zero_cbs...)
+end
+
+env_profile = CloudModels.ProfileRICO.RICO_profile()
+
+function make_initial_condition(env_profile, z0)
+    dT = 0.0
+    dqv = 3.0e-3
+    T0 = ustrip(env_profile(z0 * u"m", :T)) + dT
+    qv0 = ustrip(env_profile(z0 * u"m", :qv)) + dqv
+    F = ComponentArray(r=300, w=1.0, T=T0, q_v=qv0, q_l=0.0, q_r=0.0, q_i=0.0, q_pr=0.0, p=0.0, z=z0)
+    return F
+end
+
 function nounit_parcel_equations!(dFdt, F, params, t)
     F_units = ComponentArray(
         r=F.r * u"m",
@@ -43,49 +65,57 @@ function nounit_parcel_equations!(dFdt, F, params, t)
     dFdt[:z] = dzdt
 end
 
-F = ComponentArray(r=300, w=1.0, T=300, q_v=10.0e-3, q_l=0.0, q_r=0.0, q_i=0.0, q_pr=0.0, p=0.0, z=0.0)
-
-qd0 = 1.0 - F.q_v - F.q_l - F.q_r - F.q_i
-p0 = params.environment(F.z * u"m", :p)
-rho0 = CloudModels.calc_mixture_density(p0, F.T * u"K", qd0, F.q_v, F.q_l, F.q_r, F.q_i)
-rho0_env = params.environment(F.z * u"m", :rho)
-
-
 #env_profile = CloudModels.StandardIsentropicAtmosphere()
-env_profile = CloudModels.StandardIsothermalAtmosphere()
-params = (environment=env_profile, β=0.0)
-prob = ODEProblem(nounit_parcel_equations!, F, [0.0, 1000], params)
-sol = solve(prob, Tsit5())
+#env_profile = CloudModels.StableAtmosphereTest()
+params = (environment=env_profile, β=0.2)
+F = make_initial_condition(env_profile, 300.0)
 
-g(sol, v) = getindex.(sol.u, v)
-pg(sol, v) = plot(g(sol, v), g(sol, :z), label=string(v))
+prob = ODEProblem(nounit_parcel_equations!, F, [0.0, 1000.0], params)
+sol = solve(prob, Tsit5(), saveat=0.1, callback=setup_callbacks())
 
-g(sol, :q_v)
 
-p_env = params.environment.(g(sol, :z) * u"m", :p) .|> u"Pa"
-qv_sat_env = CloudModels.calc_qv_sat.(g(sol, :T) * u"K", p_env)
-rh_prof = g(sol, :q_v) ./ qv_sat_env
-z_prof = g(sol, :z)
+function plot_profile(sol)
+    desc = Dict(
+        :q_v => "water vapour concentation [g/kg]",
+        :q_l => "cloud liquid concentation [g/kg]",
+        :T => "temperature [g/kg]",
+        :r => "cloud radius [m]",
+        :w => "vertical velocity [m/s]"
+    )
+    g(sol, v) = getindex.(sol.u, v)
+    pg(sol, v) = plot(g(sol, v), g(sol, :z), xlabel=desc[v], label="")
+    sg(sol, v, s) = g(sol, v) .* s
 
-plot(ustrip.(p_env), z_prof)
+    z_prof = g(sol, :z)
+    p_env = params.environment.(z_prof * u"m", :p) .|> u"Pa"
+    T_env = params.environment.(z_prof * u"m", :T) .|> u"K"
+    qv_env = params.environment.(z_prof * u"m", :qv)
+    T_cld = g(sol, :T) * u"K"
+    qv_sat_env = CloudModels.calc_qv_sat.(T_env, p_env)
+    qv_sat_cld = CloudModels.calc_qv_sat.(T_cld, p_env)
+    rh_prof = g(sol, :q_v) ./ qv_sat_cld
 
-function plot_qv(sol)
-    p = pg(sol, :q_v)
-    plot!(p, qv_sat_env, g(sol, :z), label="qv_sat")
+    p_temp = pg(sol, :T)
+    plot!(p_temp, ustrip.(T_env), ustrip.(z_prof), label="env")
+
+    plt_qv = plot(sg(sol, :q_v, 1.0e3), z_prof, label="qv", xlabel="water vapour conc [g/kg]")
+    plot!(plt_qv, qv_sat_cld .* 1.0e3, z_prof, label="qv_sat", color="red")
+    # plot!(plt_qv, qv_env .* 1.0e3, z_prof, label="qv_sat", color=:green, linestyle=:dash)
+
+    plot_rh = plot(rh_prof, g(sol, :z), label="", xlabel="relative humidity [1]")
+    vline!(plot_rh, [1.0], linestyle=:dash, color=:black)
+
+    plot(
+        pg(sol, :r),
+        pg(sol, :w),
+        p_temp,
+        plt_qv,
+        plot(sg(sol, :q_l, 1.0e3), z_prof, xlabel=desc[:q_l], label=""),
+        plot_rh,
+        layout=(3, 2),
+        size=(600, 1000),
+        margin=20Plots.px
+    )
 end
 
-plot_qv(sol)
-
-plot(
-    pg(sol, :r),
-    pg(sol, :w),
-    pg(sol, :T),
-    pg(sol, :q_v),
-    pg(sol, :q_l),
-    plot(rh_prof, g(sol, :z), label="rh")
-)
-
-plot(
-    plot(sol, vars=[:r]),
-    plot(sol, vars=[:w])
-)
+plot_profile(sol)

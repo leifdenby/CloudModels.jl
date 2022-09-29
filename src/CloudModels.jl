@@ -13,6 +13,7 @@ include("profiles.jl")
 include("parcel_equations.jl")
 
 include("Reference/Reference.jl")
+include("rico.jl")
 
 export calc_density, calc_temperature, calc_pressure
 

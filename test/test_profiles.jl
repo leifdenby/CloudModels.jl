@@ -2,26 +2,43 @@ using Test
 using CloudModels
 using Unitful
 
-profiles = [
-    CloudModels.StandardIsentropicAtmosphere(),
-    CloudModels.StandardIsothermalAtmosphere(),
-    CloudModels.ConstantDensityAtmospere()
+profile_types = [
+    CloudModels.StandardIsentropicAtmosphere,
+    CloudModels.StandardIsothermalAtmosphere,
+    CloudModels.ConstantDensityAtmospere,
+    CloudModels.ProfileRICO.RICO_profile,
 ]
 
 
-@testset "profiles" for prof in profiles
-    ρ0 = calc_density(0.0u"m", prof)
-    p0 = calc_pressure(0.0u"m", prof)
+@testset "profiles $(p_type)" for p_type in profile_types
+    prof = p_type()
+    ρ0 = prof(0.0u"m", :rho)
+    p0 = prof(0.0u"m", :p)
 
-    @test ρ0 == CloudModels.rho0
     if prof == CloudModels.ConstantDensityAtmospere()
-        @test calc_density(1u"km", prof) == ρ0
+        @test prof(1u"km", :rho) == ρ0
+    elseif prof == CloudModels.ProfileRICO.RICO_profile()
+        # pass
     else
         # density should decrease with height
-        @test calc_density(1u"km", prof) < ρ0
+        @test prof(1u"km", :rho) < ρ0
     end
 
-    @test p0 == CloudModels.p0
+    # TODO expose reference values in RICO profile
+    if p_type != CloudModels.ProfileRICO.RICO_profile
+        @test p0 == prof.p0
+        @test ρ0 == CloudModels.rho0
+    end
+
     # pressure should decrease with height
-    @test calc_pressure(1u"km", prof) < p0
+    @test prof(1u"km", :p) < p0
 end
+
+using Plots
+
+z_ = collect(0:10:3500)u"m"
+prof = CloudModels.ProfileRICO.RICO_profile()
+plot(ustrip.(prof.(z_, :rho)), ustrip.(z_))
+
+prof(0.0u"m", :rho)
+prof.itp2

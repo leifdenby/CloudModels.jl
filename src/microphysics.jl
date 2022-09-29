@@ -50,11 +50,12 @@ function _dqr_dt__autoconversion(ql, qg, rho_g)
     # equation doesn't really make sense to describe breakup
     # dqr_dt = max(0.0, dqr_dt)
     # return dqr_dt
+    H(x) = x > 0 ? x : 0
 
     if ql == 0.0
         return 0.0u"1/s"
     else
-        return k_c * (ql - a_c)
+        return k_c * H(ql - a_c)
     end
 end
 
@@ -212,11 +213,11 @@ function dFdt_microphysics!(dFdt, F, t)
     dql_dt = _dql_dt__cond_evap(qv, ql, rho, T, p)
 
     qg = qv + qd
-    dqr_dt_1 = _dqr_dt__autoconversion(ql, qg, rho_g)
-    dqr_dt_2 = _dqr_dt__accretion(ql, qg, qr, rho_g)
+    dqr_dt_autoc = _dqr_dt__autoconversion(ql, qg, rho_g)
+    dqr_dt_accre = _dqr_dt__accretion(ql, qg, qr, rho_g)
     dqr_dt_condevap = _dqr_dt__cond_evap(qv, qr, rho, p, T)
 
-    dqr_dt = dqr_dt_1 + dqr_dt_2
+    dqr_dt = dqr_dt_autoc + dqr_dt_accre
 
     dFdt[:q_l] = dql_dt - dqr_dt
     dFdt[:q_v] = -dql_dt - dqr_dt_condevap

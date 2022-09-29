@@ -248,7 +248,6 @@ function parcel_equations!(dFdz, F, z, params)
     # dFdz_entrain__q[:q_i] = mu/rho_c*(qi_e*rho_e - q_i*rho_c)
 
     # 2. estimate new state from phase changes predicted by microphysics
-    F[:p] = p  # make sure that pressure is set since the microphysics needs it
 
     dFdt_micro = ComponentArray(Dict([ v => 0.0 * unit(F[v] * u"1/s") for v in keys(F)]))
     dFdt_microphysics!(dFdt_micro, F, 0.0u"s")
