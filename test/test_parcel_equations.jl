@@ -3,8 +3,7 @@ using CloudModels
 using Unitful
 using OrdinaryDiffEq
 using ComponentArrays
-using Plots
-using Revise
+
 
 @testset "eqns" begin
     F = ComponentArray(r=100u"m", w=1.0u"m/s", T=300u"K", q_v=13.0e-3, 
@@ -14,10 +13,6 @@ using Revise
     p = (environment=env_profile, β=0.2)
     CloudModels.parcel_equations!(dFdz, F, 0.0u"m", p)
 end
-
-#@testset "integrate equations" begin
-
-#F = ComponentArray(r=100u"m", w=1.0u"m/s", T=300u"K", q_v=13.0e-3, q_l=0.0, q_r=0.0, q_i=0.0, p=100e3u"Pa", q_pr=0.0)
 
 
 function setup_callbacks()
@@ -64,12 +59,16 @@ function nounit_parcel_equations!(dFdt, F, params, t)
     dFdt[:z] = dzdt
 end
 
-env_profile = CloudModels.ProfileRICO.RICO_profile()
-params = (environment=env_profile, β=0.2)
-F = make_initial_condition(env_profile, 300.0)
+@testset "parcel-integration" begin
+    env_profile = CloudModels.ProfileRICO.RICO_profile()
+    params = (environment=env_profile, β=0.2)
+    F = make_initial_condition(env_profile, 300.0)
 
-prob = ODEProblem(nounit_parcel_equations!, F, [0.0, 1000.0], params)
-sol = solve(prob, Euler(), saveat=0.1, callback=setup_callbacks(), dt=1.0)
-CloudModels.plot_profile(sol)
+    prob = ODEProblem(nounit_parcel_equations!, F, [0.0, 1000.0], params)
+    sol = solve(prob, Euler(), saveat=0.1, callback=setup_callbacks(), dt=1.0)
+    CloudModels.plot_profile(sol)
 
-g(sol, v) = getindex.(sol.u, v)
+    g(sol, v) = getindex.(sol.u, v)
+    #check that some condensation has occoured :)
+    @test sum(g(sol, :q_l)) > 0.0
+end
