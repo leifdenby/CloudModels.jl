@@ -15,7 +15,7 @@ using Unitful
             qi = 0.0
             qd = 1.0 - qv - ql - qr - qi
             rho = CloudModels.calc_mixture_density(p0, T0, qd, qv, ql, qr, qi)
-            dql_dt = CloudModels._dql_dt__cond_evap(qv, ql, rho, T0, p0)
+            dql_dt = CloudModels._dql_dt__cond_evap(qv, ql, rho, p0, T0)
             if Sw > 1.0
                 @test dql_dt > 0.0u"1/s"
             elseif Sw < 1.0 && ql > 0.0
@@ -31,7 +31,7 @@ using Unitful
             qi = 0.0
             qd = 1.0 - qv - ql - qr - qi
             rho = CloudModels.calc_mixture_density(p0, T0, qd, qv, ql, qr, qi)
-            dqr_dt = CloudModels._dqr_dt__cond_evap(qv, qr, rho, T0, p0)
+            dqr_dt = CloudModels._dqr_dt__cond_evap(qv, qr, rho, p0, T0)
             if Sw > 1.0 && qr > 0.0
                 @test dqr_dt > 0.0u"1/s"
             elseif Sw < 1.0 && qr > 0.0

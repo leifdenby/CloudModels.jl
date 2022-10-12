@@ -30,8 +30,11 @@ profile_types = [
         @test ρ0 == CloudModels.rho0
     end
 
+    p_val = prof(1u"km", :p) 
     # pressure should decrease with height
-    @test prof(1u"km", :p) < p0
+    @test p_val < p0
+    # and should be given in something that can be converted to Pascals
+    @test unit(uconvert(u"Pa", p_val)) == u"Pa"
 end
 
 using Plots

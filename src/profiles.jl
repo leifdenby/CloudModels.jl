@@ -30,7 +30,7 @@ end
 function calc_pressure(z, prof::ReferenceAtmosphere)
     ρ = calc_density(z, prof)
     T = calc_temperature(z, prof)
-    return ρ * R_d * T
+    return ρ * R_d * T |> u"Pa"
 end
 
 function calc_potential_temperature(z, prof::ReferenceAtmosphere)
