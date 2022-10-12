@@ -2,17 +2,18 @@ using Test
 using CloudModels
 using Unitful
 using OrdinaryDiffEq
-using ComponentArrays
+using LabelledArrays
 
 
-@testset "eqns" begin
-    F = ComponentArray(r=100u"m", w=1.0u"m/s", T=300u"K", q_v=13.0e-3, 
-    q_l=0.0, q_r=0.0, q_i=0.0, p=100e3u"Pa", q_pr=0.0)
-    dFdz = ComponentArray(Dict([ v => 0.0 * unit(F[v] * u"1/m") for v in keys(F)]))
+@testset "eqns evaluation" begin
+    F = LVector(r=100u"m", w=1.0u"m/s", T=300u"K", q_v=13.0e-3, q_l=0.0, q_r=0.0, q_i=0.0, p=100e3u"Pa", q_pr=0.0)
+    dFdz = LVector(NamedTuple(Dict([ v => 0.0 * unit(F[v] * u"1/m") for v in keys(F)])))
     env_profile = CloudModels.StandardIsentropicAtmosphere()
     p = (environment=env_profile, β=0.2)
+    dFdz_initial = copy(dFdz)
     CloudModels.parcel_equations!(dFdz, F, 0.0u"m", p)
-end
+    @test dFdz != dFdz_initial
+end 
 
 
 function setup_callbacks()
@@ -31,12 +32,12 @@ function make_initial_condition(env_profile, z0)
     dqv = 3.0e-3
     T0 = ustrip(env_profile(z0 * u"m", :T)) + dT
     qv0 = ustrip(env_profile(z0 * u"m", :qv)) + dqv
-    F = ComponentArray(r=300, w=1.0, T=T0, q_v=qv0, q_l=0.0, q_r=0.0, q_i=0.0, q_pr=0.0, p=0.0, z=z0)
+    F = LVector(r=300, w=1.0, T=T0, q_v=qv0, q_l=0.0, q_r=0.0, q_i=0.0, q_pr=0.0, p=0.0, z=z0)
     return F
 end
 
 function nounit_parcel_equations!(dFdt, F, params, t)
-    F_units = ComponentArray(
+    F_units = LVector(
         r=F.r * u"m",
         w=F.w * u"m/s",
         T=F.T * u"K",
@@ -59,16 +60,35 @@ function nounit_parcel_equations!(dFdt, F, params, t)
     dFdt[:z] = dzdt
 end
 
-@testset "parcel-integration" begin
+#@testset "parcel-integration" begin
     env_profile = CloudModels.ProfileRICO.RICO_profile()
     params = (environment=env_profile, β=0.2)
     F = make_initial_condition(env_profile, 300.0)
-
-    prob = ODEProblem(nounit_parcel_equations!, F, [0.0, 1000.0], params)
-    sol = solve(prob, Euler(), saveat=0.1, callback=setup_callbacks(), dt=1.0)
+    
+    prob = ODEProblem(nounit_parcel_equations!, F, [0.0, 10.0], params)
+    sol = solve(prob, Euler(), callback=setup_callbacks(), dt=1.0)
     CloudModels.plot_profile(sol)
 
     g(sol, v) = getindex.(sol.u, v)
     #check that some condensation has occoured :)
     @test sum(g(sol, :q_l)) > 0.0
+#end
+#
+
+using LabelledArrays, OrdinaryDiffEq
+
+function lorenz_f(du,u,p,t)
+  du.x = p.σ*(u.y-u.x)
+  du.y = u.x*(p.ρ-u.z) - u.y
+  du.z = u.x*u.y - p.β*u.z
 end
+
+u0 = @LArray [1.0,0.0,0.0] (:x,:y,:z)
+p = @LArray [10.0, 28.0, 8/3]  (:σ,:ρ,:β)
+tspan = (0.0,10.0)
+prob = ODEProblem(lorenz_f,u0,tspan,p)
+sol = solve(prob,Euler(), dt=0.01)
+# Now the solution can be indexed as .x/y/z as well!
+sol[10].x
+
+sol.u
