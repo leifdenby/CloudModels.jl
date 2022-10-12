@@ -222,7 +222,7 @@ function parcel_equations!(dFdz, F, z, params)
     ql_e, qr_e, qi_e = 0.0, 0.0, 0.0
 
     # as well as tracer (water) changes from microphysics we have to consider entrainment
-    dFdz_entrain__q = zero(dFdz)
+    dFdz_entrain__q = copy(dFdz) .* 0.0  # there seems to be a bug here where zero(dFdz) doesn't copy over the Unitful type, so we just make a manual copy for now
 
     # dqd_dz__ent = mu/rho_c*(qd_e*rho_e - q_d*rho_c)
     dqd_dz__ent = mu * (qd_e - q_d)
