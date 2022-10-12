@@ -1,6 +1,6 @@
 using Test
 using CloudModels
-using Unitful
+#using Unitful
 
 @testset "parameterisations" begin
     @testset "viscosity" begin
@@ -11,5 +11,4 @@ using Unitful
         # dynamic viscosity should go up with temperature
         @test μ1 > μ0
     end
-
 end

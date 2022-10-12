@@ -6,7 +6,7 @@ end
 
 rho0 = 1.205 * u"kg/m^3"
 p0 = 101325.0 * u"Pa"
-T0 = p0 / (rho0 * R_d) |> u"K"
+T0 = uconvert(u"K", p0 / (rho0 * R_d))
 κ = R_d / cp_d
 
 StandardIsothermalAtmosphere() = ReferenceAtmosphere(rho0, p0, 0.0u"K/km")
@@ -30,7 +30,7 @@ end
 function calc_pressure(z, prof::ReferenceAtmosphere)
     ρ = calc_density(z, prof)
     T = calc_temperature(z, prof)
-    return ρ * R_d * T |> u"Pa"
+    return uconvert(u"Pa", ρ * R_d * T)
 end
 
 function calc_potential_temperature(z, prof::ReferenceAtmosphere)

@@ -13,8 +13,8 @@ function plot_profile(sol)
     params = sol.prob.p
 
     z_prof = g(sol, :z)
-    p_env = params.environment.(z_prof * u"m", :p) .|> u"Pa"
-    T_env = params.environment.(z_prof * u"m", :T) .|> u"K"
+    p_env = uconvert.(u"Pa", params.environment.(z_prof * u"m", :p))
+    T_env = uconvert.(u"K", params.environment.(z_prof * u"m", :T))
     qv_env = params.environment.(z_prof * u"m", :qv)
     T_cld = g(sol, :T) * u"K"
     qv_sat_env = CloudModels.calc_qv_sat.(T_env, p_env)
