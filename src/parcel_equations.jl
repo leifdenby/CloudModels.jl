@@ -163,6 +163,10 @@ on the relative velocity of the cloud parcel and the fall-speed of the
 rain-droplets
 """
 function calc_dqr_dz__rainout(rho_c, q_r, w)
+    if q_r <= 0.0
+        return 0.0u"1/m"
+    end
+
     # size-distribtion length-scale
     l = (8.0 * rho_l * pi * N0 / (q_r * rho_c)) ^ 0.25
 
@@ -184,6 +188,10 @@ end
 
 
 function parcel_equations!(dFdz, F, z, params)
+#    @info "what"
+#    @show dFdz
+#    @show F
+    try
     environment = params[:environment]
     r = F[:r]
     w = F[:w]
@@ -222,7 +230,8 @@ function parcel_equations!(dFdz, F, z, params)
     ql_e, qr_e, qi_e = 0.0, 0.0, 0.0
 
     # as well as tracer (water) changes from microphysics we have to consider entrainment
-    dFdz_entrain__q = zero(dFdz)
+    # dFdz_entrain__q = zero(dFdz)
+    dFdz_entrain__q = copy(dFdz) .* 0.0
 
     # dqd_dz__ent = mu/rho_c*(qd_e*rho_e - q_d*rho_c)
     dqd_dz__ent = mu * (qd_e - q_d)
@@ -249,7 +258,8 @@ function parcel_equations!(dFdz, F, z, params)
 
     # 2. estimate new state from phase changes predicted by microphysics
 
-    dFdt_micro = ComponentArray(Dict([ v => 0.0 * unit(F[v] * u"1/s") for v in keys(F)]))
+    # dFdt_micro = ComponentArray(Dict([ v => 0.0 * unit(F[v] * u"1/s") for v in keys(F)]))
+    dFdt_micro = copy(dFdz) .* 0.0
     dFdt_microphysics!(dFdt_micro, F, 0.0u"s")
 
     dFdz_micro = dFdt_micro / w  # w = dz/dt
@@ -285,4 +295,8 @@ function parcel_equations!(dFdz, F, z, params)
     dqr_dz__rainout = calc_dqr_dz__rainout(rho_c, q_r, w)
     dFdz[:q_r] -= dqr_dz__rainout
     dFdz[:q_pr] = dqr_dz__rainout
+    catch
+        @warn F
+        rethrow()
+    end
 end

@@ -61,7 +61,7 @@ end
 
 function _dqr_dt__accretion(ql, qg, qr, rho_g)
     # if there is no rain there is nothing to accrete onto
-    if qr == 0.0
+    if qr <= 0.0
         return 0.0u"1/s"
     end
 
@@ -92,6 +92,10 @@ function _dql_dt__cond_evap(qv, ql, rho, p, T)
     # and droplet radius calculated above)
     qv_sat = calc_qv_sat(T, p)
     Sw = qv / qv_sat
+    
+    if ql < 1.0e-12
+        return 0.0
+    end
 
     # number of aerosols stays constant (to add aerosol activation only a
     # fraction if the original present aerosols would be "activated" at
@@ -105,6 +109,7 @@ function _dql_dt__cond_evap(qv, ql, rho, p, T)
             r_c = 0.0u"m"
         end
     else
+        @show ql rho
         r_c = (ql * rho / (4.0 / 3.0 * pi * N0i * rho_l)) ^ (1.0 / 3.0)
         # droplet's should at least be as big as their initial (aerosol) size
         r_c = max(r0, r_c)
@@ -150,7 +155,7 @@ function _dqr_dt__cond_evap(qv, qr, rho, p, T)
     rho0 = 1.12u"kg/m^3"
 
     # can't do cond/evap without any rain-droplets present
-    if qr == 0.0
+    if qr <= 0.0
         return 0.0u"1/s"
     end
 
@@ -217,7 +222,7 @@ function dFdt_microphysics!(dFdt, F, t)
     dqr_dt_condevap = _dqr_dt__cond_evap(qv, qr, rho, p, T)
 
     dqr_dt = dqr_dt_autoc + dqr_dt_accre
-
+    
     dFdt[:q_l] = dql_dt - dqr_dt
     dFdt[:q_v] = -dql_dt - dqr_dt_condevap
     dFdt[:q_r] = dqr_dt + dqr_dt_condevap
@@ -225,8 +230,7 @@ function dFdt_microphysics!(dFdt, F, t)
 
     for v in [:q_l, :q_v, :q_r]
         if F[v] < 0.0
-            @show dFdt v
-            throw("oh no")
+            @warn dFdt v
         end
     end
 
