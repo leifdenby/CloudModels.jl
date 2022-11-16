@@ -44,4 +44,19 @@ getvar(sol, v) = getindex.(sol.u, v)
         zmax = [maximum(getvar(sol, :z)) for sol in sols]
         @test sort(zmax) == zmax
     end
+
+    @testset "changing entrainment rate" begin
+        sols = []
+        for β in [0.2, 0.1, 0.0]
+            params = (environment=env_profile, β=β)
+            U0 = make_initial_condition(env_profile, r0=400, w0=1.0, dqv=1.0e-3, z0=500.0)
+            prob = ODEProblem(parcel_equations!, U0, [0.0, 700.0], params)
+            sol = solve(prob, Euler(), dt=1.0, saveat=10.0, callback=setup_callbacks(z_max=00.0))
+            push!(sols, sol)
+        end
+        
+        # lower entrainment rate should lead to higher cloud-top height
+        zmax = [maximum(getvar(sol, :z)) for sol in sols]
+        @test sort(zmax) == zmax
+    end
 end
