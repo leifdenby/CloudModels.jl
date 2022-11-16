@@ -8,71 +8,40 @@ using Revise
 using Turing
 using StatsPlots
 
-function setup_callbacks()
-    condition(u, t, integrator) = u.z - 2000.0
-    cb_ztop = ContinuousCallback(condition,terminate!)
-    cb_zbottom = ContinuousCallback((u, t, integrator) -> u.z - 200.0,terminate!)
 
-    mphys_zero_cbs = [
-        DiscreteCallback((u, t, i) -> u[v] < 0.0, x-> terminate!(x, :NegativeMphys)) for v in [:q_v, :q_r, :q_l]
-    ]
-    CallbackSet(cb_ztop, cb_zbottom, mphys_zero_cbs...)
-end
+include("integration_common.jl")
 
-
-function make_initial_condition(env_profile, z0)
-    dT = 0.0
-    dqv = 3.0e-3
-    T0 = ustrip(env_profile(z0 * u"m", :T)) + dT
-    qv0 = ustrip(env_profile(z0 * u"m", :qv)) + dqv
-    F = ComponentArray(r=300, w=1.0, T=T0, q_v=qv0, q_l=0.0, q_r=0.0, q_i=0.0, q_pr=0.0, p=0.0, z=z0)
-    return F
-end
-
-function nounit_parcel_equations!(dFdt, F, params, t)
-    F_units = ComponentArray(
-        r=F.r * u"m",
-        w=F.w * u"m/s",
-        T=F.T * u"K",
-        q_v=F.q_v,
-        q_l=F.q_l,
-        q_r=F.q_r,
-        q_i=F.q_i,
-        q_pr=F.q_pr,
-        p=F.p * u"Pa",
-        z=F.z * u"m",
-    )
-    dFdz_units = ComponentArray(Dict([ v => 0.0 * unit(F_units[v] * u"1/m") for v in keys(F)]))
-
-    CloudModels.parcel_equations!(dFdz_units, F_units, F.z * u"m", params)
-    dFdz = ustrip.(dFdz_units)
-    dzdt = F.w
-    for v in keys(F)
-        dFdt[v] = dFdz[v] / dzdt
-    end
-    dFdt[:z] = dzdt
-end
-
-function parcel_equations!(dFdt, F, params, t)
-    dFdt .= 0.0
-    dzdt = F.w
-    CloudModels.parcel_equations!(dFdt, F, F.z * u"m", params)
-    dFdt ./= dzdt
-    dFdt[:z] = dzdt
-end
-
-
-env_profile = CloudModels.ProfileRICO.RICO_profile();
-params = (environment=env_profile, β=0.2)
-F = make_initial_condition(env_profile, 300.0)
 
 #prob = ODEProblem(nounit_parcel_equations!, F, [0.0, 1000.0], params)
-prob = ODEProblem(parcel_equations!, F, [0.0, 1000.0], params)
-#sol = solve(prob, Euler(), saveat=10.0, callback=setup_callbacks(), dt=1.0)
-sol = solve(prob, RK4(), saveat=10.0, callback=setup_callbacks())
-CloudModels.plot_profile(sol)
-length(sol)
 
+env_profile = CloudModels.ProfileRICO.RICO_profile();
+
+sols = []
+for w0 in [0.5, 1.0, 2.0]
+    params = (environment=env_profile, β=0.2)
+    U0 = make_initial_condition(env_profile, r0=400, w0=w0, dqv=1.0e-3, z0=500.0)
+    prob = ODEProblem(parcel_equations!, U0, [0.0, 700.0], params)
+    sol = solve(prob, Euler(), dt=1.0, saveat=10.0, callback=setup_callbacks(z_max=00.0))
+    push!(sols, sol)
+end
+
+CloudModels.plot_profile(sols..., wrap=4, size=300)
+
+CloudModels.plot_profile(sols..., vars=[:r, :w, :qv, :rh, :Δrho, :T], wrap=3, size=300)
+
+CloudModels.plot_profile_var(sols..., var_name=:ql)
+CloudModels.plot_profile_var(sols..., var_name=:r)
+
+
+plot!(p, rand(Float32, (100,)), sin)
+
+z_ = 500:5:1e3
+plot(env_profile.(z_, :T), z_)
+
+
+p = plot(rand(Float32, (10)), sin)
+typeof(p)
+fieldnames(typeof(p))
 
 @model function discrete_cloud_evolution(data)
     dT = 0.0

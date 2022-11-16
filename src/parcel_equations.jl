@@ -1,10 +1,3 @@
-gamma=0.5
-C_D=0.506
-l_pr=100.0u"m"
-
-
-# droplet-size distribution constant
-N0 = 1.0e7u"m^-4"  # [m^-4]
 
 """
 Momentum equation
@@ -14,7 +7,7 @@ State variables:
     r: cloud radius
     rho_c: cloud density
 """
-function calc_dw_dz(p, w_c, r_c, T_c, qd_c, qv_c, ql_c, qi_c, qr_c, rho_e, mu)
+function calc_dw_dz(p, w_c, r_c, T_c, qd_c, qv_c, ql_c, qi_c, qr_c, rho_e, mu, gamma, C_D)
     rho_c = calc_mixture_density(p, T_c, qd_c, qv_c, ql_c, qi_c, qr_c)
     B = (rho_e - rho_c) / rho_e
 
@@ -162,7 +155,7 @@ Estimate rate at which rain-droplets leave the cloudy air parcel. Based
 on the relative velocity of the cloud parcel and the fall-speed of the
 rain-droplets
 """
-function calc_dqr_dz__rainout(rho_c, q_r, w)
+function calc_dqr_dz__rainout(rho_c, q_r, w, N0, l_pr)
     if q_r <= 0.0
         return 0.0u"1/m"
     end
@@ -188,9 +181,14 @@ end
 
 
 function parcel_equations!(dFdz, F, z, params)
-#    @info "what"
-#    @show dFdz
-#    @show F
+    # extract the parameters
+    gamma = get(params, :γ, 1.0)
+    C_D = get(params, :C_D, 0.506)
+    l_pr = get(params, :l_pr, 100.0u"m")
+    # droplet-size distribution constant
+    N0 = get(params, :N0, 1.0e7u"m^-4")  # [m^-4]
+    beta = get(params, :β, 0.2)
+
     try
     environment = params[:environment]
     r = F[:r]
@@ -219,11 +217,11 @@ function parcel_equations!(dFdz, F, z, params)
     # calculate entrainment rate
     rho_c = calc_mixture_density(p, T, q_d, q_v, q_l, q_i, q_r)
     B = (rho_e - rho_c) / rho_e
-    mu = params.β / r
+    
+    mu = beta / r
 
     # 1. Estimate change in vertical velocity with initial state
-    dwdz = calc_dw_dz(p, w, r, T, q_d, q_v, q_l, q_r, q_i, rho_e, mu)
-
+    dwdz = calc_dw_dz(p, w, r, T, q_d, q_v, q_l, q_r, q_i, rho_e, mu, gamma, C_D)
     dFdz[:w] = dwdz
 
     # assume no condesates present in environment
@@ -262,6 +260,7 @@ function parcel_equations!(dFdz, F, z, params)
     dFdt_micro = copy(dFdz) .* 0.0
     dFdt_microphysics!(dFdt_micro, F, 0.0u"s")
 
+    # dF/dz = dF/dt * dt/dz = dF/dT / w
     dFdz_micro = dFdt_micro / w  # w = dz/dt
     # temperature effect will be determined from temperature equation,
     # microphysics only provides changes due to microphysics itself over short
@@ -292,7 +291,7 @@ function parcel_equations!(dFdz, F, z, params)
     dFdz[:r] = drdz
 
     # 5. Estimate fraction of rain that leaves parcel
-    dqr_dz__rainout = calc_dqr_dz__rainout(rho_c, q_r, w)
+    dqr_dz__rainout = calc_dqr_dz__rainout(rho_c, q_r, w, N0, l_pr)
     dFdz[:q_r] -= dqr_dz__rainout
     dFdz[:q_pr] = dqr_dz__rainout
     catch
