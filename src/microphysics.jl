@@ -92,10 +92,6 @@ function _dql_dt__cond_evap(qv, ql, rho, p, T)
     # and droplet radius calculated above)
     qv_sat = calc_qv_sat(T, p)
     Sw = qv / qv_sat
-    
-    if ql < 1.0e-12
-        return 0.0
-    end
 
     # number of aerosols stays constant (to add aerosol activation only a
     # fraction if the original present aerosols would be "activated" at
@@ -109,7 +105,6 @@ function _dql_dt__cond_evap(qv, ql, rho, p, T)
             r_c = 0.0u"m"
         end
     else
-        @show ql rho
         r_c = (ql * rho / (4.0 / 3.0 * pi * N0i * rho_l)) ^ (1.0 / 3.0)
         # droplet's should at least be as big as their initial (aerosol) size
         r_c = max(r0, r_c)
