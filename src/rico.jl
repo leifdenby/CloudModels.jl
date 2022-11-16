@@ -3,6 +3,7 @@ module ProfileRICO
 using ComponentArrays
 using LinearInterpolations
 using OrderedCollections
+import ..CloudModels
 
 macro u_str(unit)
     return 1.0
@@ -100,14 +101,19 @@ end
 function (prof::RICO_profile)(z, var_name::Symbol)
     if var_name in [:theta_l, :qt]
         return prof.ref_profile(z)[var_name]
-    end
-    if var_name in [:rho, :p, :T]
+    elseif var_name in [:rho, :p, :T]
         return prof.itp2(z)[var_name]
-    end
-    if var_name == :qv
+    elseif var_name == :qv
         return prof.ref_profile(z)[:qt]
+    elseif var_name == :rh
+        T = prof(z, :T)
+        p = prof(z, :p)
+        qv = prof(z, :qv)
+        qv_sat = CloudModels.calc_qv_sat(T, p)
+        return qv / qv_sat
+    else
+        throw("Can't compute $(var_name)")
     end
-    throw("Can't compute $(var_name)")
 end
 
 end
