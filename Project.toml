@@ -15,7 +15,6 @@ Revise = "295af30f-e4ad-537b-8983-00126c2a3abe"
 StatsPlots = "f3b207a7-027a-5e70-b257-86293d7955fd"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 Turing = "fce5fe82-541a-59a6-adf8-730c64b5f9a0"
-Unitful = "1986cc42-f94f-5a68-af5c-568840ba703d"
 
 [extras]
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
