@@ -4,102 +4,90 @@ using CloudModels
 using OrdinaryDiffEq
 using ComponentArrays
 using Plots
-using Revise
 using Turing
 using StatsPlots
+using Distributions
+using LinearAlgebra
 
 
 include("integration_common.jl")
 
 
-#prob = ODEProblem(nounit_parcel_equations!, F, [0.0, 1000.0], params)
+function create_fake_observations(env_profile)
+    prob_params = (; environment=env_profile)
+    U0 = make_initial_condition(env_profile)
+    prob = ODEProblem(parcel_equations!, U0, [0.0, 700.0], prob_params)
+    sol = solve(prob, Euler(), saveat=10.0, callback=setup_callbacks(), dt=1.0)
+
+    getvar(sol, v) = getindex.(sol.u, v)
+
+    z_obs = getvar(sol, :z)
+    w_true = getvar(sol, :w)
+    
+    w_noisy = w_true + rand(Normal(0.0, 1.0e-2), size(w_true))
+    return z_obs, w_noisy, w_true
+end
+
+
+@model function discrete_cloud_evolution(z_obs, w_obs, env_profile)
+    σ ~ InverseGamma(2, 3)
+    σ_alt ~ InverseGamma(2, 3)
+
+    z0 = z_obs[1]
+    r0 ~ truncated(Normal(200.0, 100.0), lower=0.0)
+
+    U0 = make_initial_condition(env_profile, r0=r0)
+    prob_params = (; environment=env_profile)
+    prob = ODEProblem(parcel_equations!, U0, [0.0, 700.0], prob_params)
+    # pred = solve(prob, Euler(), saveat=10.0, callback=setup_callbacks(), dt=1.0)
+    pred = solve(prob, RK4(), saveat=10.0, callback=setup_callbacks())
+
+    # only compare up to the height of the max observation or prediction
+    zmax_comp = minimum([pred.u[end].z, z_obs[end]])
+    k = argmax(filter(z -> z <= zmax_comp, z_obs))
+    z_comp = z_obs[1:k]
+    w_pred = getindex.(pred.(z_comp), :w)
+    w_obs[1:k] ~ MvNormal(w_pred, σ * I)
+
+    # try to make prediction top center on obs top
+    z_obs[end] ~ Normal(pred.u[end].z, σ_alt)
+
+    return nothing
+end
 
 env_profile = CloudModels.ProfileRICO.RICO_profile();
+z_obs, w_obs, w_true = create_fake_observations(env_profile)
 
-sols = []
-for w0 in [0.5, 1.0, 2.0]
-    params = (environment=env_profile, β=0.2)
-    U0 = make_initial_condition(env_profile, r0=400, w0=w0, dqv=1.0e-3, z0=500.0)
-    prob = ODEProblem(parcel_equations!, U0, [0.0, 700.0], params)
-    sol = solve(prob, Euler(), dt=1.0, saveat=10.0, callback=setup_callbacks(z_max=00.0))
-    push!(sols, sol)
-end
+plot(w_obs, z_obs)
+plot!(w_true, z_obs)
 
-CloudModels.plot_profile(sols..., wrap=4, size=300)
+model = discrete_cloud_evolution(z_obs, w_obs, env_profile);
+chain = sample(model, MH(), 100)
 
-CloudModels.plot_profile(sols..., vars=[:r, :w, :qv, :rh, :Δrho, :T], wrap=3, size=300)
-
-CloudModels.plot_profile_var(sols..., var_name=:ql)
-CloudModels.plot_profile_var(sols..., var_name=:r)
-
-
-plot!(p, rand(Float32, (100,)), sin)
-
-z_ = 500:5:1e3
-plot(env_profile.(z_, :T), z_)
-
-
-p = plot(rand(Float32, (10)), sin)
-typeof(p)
-fieldnames(typeof(p))
-
-@model function discrete_cloud_evolution(data)
-    dT = 0.0
-    dqv = 3.0e-3
-    z0 = 300.0
-    T0 = ustrip(env_profile(z0 * u"m", :T)) + dT
-    qv0_μ = ustrip(env_profile(z0 * u"m", :qv)) + dqv
-    #qv0 ~ truncated(Normal(qv0_μ, 1.0e-3); lower=0.0)
-    #r0 ~ truncated(Normal(280.0, 20.0), lower=0.0)
-    r0 ~ truncated(Normal(280.0, 100.0), lower=100.0)
-    F = ComponentArray(r=r0, w=1.0, T=T0, q_v=qv0_μ, q_l=0.0, q_r=0.0, q_i=0.0, q_pr=0.0, p=0.0, z=z0)
-    
-    σ ~ InverseGamma(2, 3)
-
-    prob = ODEProblem(parcel_equations!, F, [0.0, 1000.0], params)
-    pred = solve(prob, Euler(), saveat=10.0, callback=setup_callbacks(), dt=1.0)
-    #pred = solve(prob, RK4(), u0=F; saveat=10.0, callback=setup_callbacks())
-    
-    @show length(pred) r0
-    
-    # fit only on vertical velocity
-    for i in 1:length(data)
-        if data[i].z > sol.u[end].z
-            break
-        end
-        # interpolate into solution at heights where we have "observations"
-        data[i].w ~ Normal(pred(data[i].z).w, σ)
-    end
-end
-
-g(sol, v) = getindex.(sol.u, v)
-g(sol, :z)
-
-model = discrete_cloud_evolution(sol.u);
-chain = sample(model, MH(), 50)
-chain = sample(model, HMC(0.01, 5), 100)
-chain = sample(model, NUTS(), MCMCSerial(), 100, 1)
+# TODO work how to get other samplers to work...
+# chain = sample(model, HMC(0.01, 5), 100)
+# chain = sample(model, NUTS(), MCMCSerial(), 100, 1)
+# chain = sample(model, NUTS(), MCMCThreads(), 100, 10)
+# chain = sample(model, NUTS(0.45), MCMCThreads(), 100, 3; progress=false)
 
 plot(chain)
 
-sol_w = getindex.(sol.u, :w)
-plot(sol.t, sol_w, marker=:circle)
 
-posterior_samples = sample(chain[[:r0, ]], 10; replace=false)
-p2 = plot()
+posterior_samples = sample(chain[[:r0, ]], 50; replace=false)
+plot(posterior_samples)
+sols = []
 for p in eachrow(Array(posterior_samples))
-    dT = 0.0
-    dqv = 3.0e-3
-    z0 = 300.0
-    T0 = ustrip(env_profile(z0 * u"m", :T)) + dT
-    qv0_μ = ustrip(env_profile(z0 * u"m", :qv)) + dqv
     r0 = p[1]
+    @show r0
 
-    F = ComponentArray(r=r0, w=1.0, T=T0, q_v=qv0_μ, q_l=0.0, q_r=0.0, q_i=0.0, q_pr=0.0, p=0.0, z=z0)
-    prob = ODEProblem(parcel_equations!, F, [0.0, 1000.0], params)
-    sol_p = solve(prob, Euler(), u0=F, saveat=10.0, callback=setup_callbacks(), dt=1.0)
-    @show sol_p.u[1]
-    plot!(p2, g(sol_p, :z), g(sol_p, :w); alpha=0.1, color="#BBBBBB")
+    U0 = make_initial_condition(env_profile, r0=r0)
+    prob_params = (; environment=env_profile)
+    prob = ODEProblem(parcel_equations!, U0, [0.0, 700.0], prob_params)
+    sol_p = solve(prob, Euler(), saveat=10.0, callback=setup_callbacks(), dt=1.0)
+    @show sol_p.u[end].z
+    push!(sols, sol_p)
 end
-plot!(p2, g(sol, :z), g(sol, :w), color=:red)
-plot!(p2)
+
+length(sols)
+CloudModels.plot_profile_var(sols..., var_name=:w)
+plot!(w_true, z_obs, color=:red, linewidth=5)
