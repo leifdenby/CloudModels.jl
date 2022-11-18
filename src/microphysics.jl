@@ -61,7 +61,7 @@ end
 
 function _dqr_dt__accretion(ql, qg, qr, rho_g)
     # if there is no rain there is nothing to accrete onto
-    if qr == 0.0
+    if qr <= 0.0
         return 0.0u"1/s"
     end
 
@@ -150,7 +150,7 @@ function _dqr_dt__cond_evap(qv, qr, rho, p, T)
     rho0 = 1.12u"kg/m^3"
 
     # can't do cond/evap without any rain-droplets present
-    if qr == 0.0
+    if qr <= 0.0
         return 0.0u"1/s"
     end
 
@@ -217,7 +217,7 @@ function dFdt_microphysics!(dFdt, F, t)
     dqr_dt_condevap = _dqr_dt__cond_evap(qv, qr, rho, p, T)
 
     dqr_dt = dqr_dt_autoc + dqr_dt_accre
-
+    
     dFdt[:q_l] = dql_dt - dqr_dt
     dFdt[:q_v] = -dql_dt - dqr_dt_condevap
     dFdt[:q_r] = dqr_dt + dqr_dt_condevap
@@ -225,8 +225,7 @@ function dFdt_microphysics!(dFdt, F, t)
 
     for v in [:q_l, :q_v, :q_r]
         if F[v] < 0.0
-            @show dFdt v
-            throw("oh no")
+            @warn dFdt v
         end
     end
 

@@ -3,7 +3,14 @@ module ProfileRICO
 using ComponentArrays
 using LinearInterpolations
 using OrderedCollections
-using Unitful
+import ..CloudModels
+
+macro u_str(unit)
+    return 1.0
+end
+
+uconvert(_, v) = v
+unit(v) = 1.0
 
 """
 Based on KNMI's synthesis of the RICO field compaign for a LES intercomparison study
@@ -64,14 +71,14 @@ function integrate_profile(ref_profile, dz)
         R_l = R_d * qd + R_v * qv
         c_l = cp_d * qd + cp_v * qv
 
-        T = theta_l / ((p0 / p) ^ (R_l / c_l)) |> u"K"
-        rho = 1.0 / ((qd * R_d + qv * R_v) * T / p) |> u"kg/m^3"  # + 1.0/(ql/rho_l), ql = 0.0
+        T = uconvert(u"K", theta_l / ((p0 / p) ^ (R_l / c_l)))
+        rho = uconvert(u"kg/m^3", 1.0 / ((qd * R_d + qv * R_v) * T / p))  # + 1.0/(ql/rho_l), ql = 0.0
 
         points[z] = ComponentArray(rho=rho, p=p, T=T)
 
         # integrate pressure
         z += dz
-        p += -rho * g * dz
+        p += uconvert(u"Pa", -rho * g * dz)
     end
 
     return points
@@ -90,20 +97,23 @@ function RICO_profile()
     return RICO_profile(ref_profile, itp2)
 end
 
-RICO_profile()
-
 
 function (prof::RICO_profile)(z, var_name::Symbol)
     if var_name in [:theta_l, :qt]
         return prof.ref_profile(z)[var_name]
-    end
-    if var_name in [:rho, :p, :T]
+    elseif var_name in [:rho, :p, :T]
         return prof.itp2(z)[var_name]
-    end
-    if var_name == :qv
+    elseif var_name == :qv
         return prof.ref_profile(z)[:qt]
+    elseif var_name == :rh
+        T = prof(z, :T)
+        p = prof(z, :p)
+        qv = prof(z, :qv)
+        qv_sat = CloudModels.calc_qv_sat(T, p)
+        return qv / qv_sat
+    else
+        throw("Can't compute $(var_name)")
     end
-    throw("Can't compute $(var_name)")
 end
 
 end

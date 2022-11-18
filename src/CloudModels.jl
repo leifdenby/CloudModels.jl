@@ -1,9 +1,20 @@
 module CloudModels
 
-using Unitful
+#using Unitful
 using ComponentArrays
 using LinearInterpolations
 using Plots
+
+
+macro u_str(unit)
+    return 1.0
+end
+
+uconvert(_, v) = v
+unit(v) = 1.0
+ustrip(v) = v
+
+export @u_str, uconvert, unit, ustrip
 
 
 include("constants.jl")
