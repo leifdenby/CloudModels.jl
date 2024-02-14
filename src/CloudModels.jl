@@ -22,6 +22,7 @@ include("eos.jl")
 include("parameterisations.jl")
 include("microphysics.jl")
 include("profiles.jl")
+include("plume_equations.jl")
 include("parcel_equations.jl")
 include("plots.jl")
 

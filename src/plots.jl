@@ -32,7 +32,7 @@ function make_name(sol)
     return params_s
 end
 
-function plot_profile_var(sols...; var_name=:r, legend=:outertopright)
+function plot_profile_var(sols...; var_name=:r, legend=:outertopright, kwargs...)
     env_linestyle = :dash
 
     desc = Dict(
@@ -48,8 +48,16 @@ function plot_profile_var(sols...; var_name=:r, legend=:outertopright)
     g(sol, v) = getindex.(sol.u, v)
     sg(sol, v, s) = g(sol, v) .* s
 
-    colors = palette(:tab10)
+    if length(sols) > 10
+        colors = palette(:tab10, length(sols))
+    else
+        colors = palette(:tab10)
+    end
+
     for (sol, color) in zip(sols, colors)
+        if :color in keys(kwargs)
+            color = kwargs[:color]
+        end
         label = make_name(sol)
         pg(sol, v) = plot!(p_var, g(sol, v), g(sol, :z), xlabel=desc[v], label=label, ylabel="alt [m]", color=color)
         params = sol.prob.p
