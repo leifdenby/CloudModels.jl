@@ -179,28 +179,28 @@ end
 
 
 function dFdt_microphysics!(dFdt, F, p, t)
-    qv = F[:q_v]
-    ql = F[:q_l]
-    qr = F[:q_r]
-    qi = F[:q_i]
+    qv = F.q_v
+    ql = F.q_l
+    qr = F.q_r
+    qi = F.q_i
 
     # the integrator may have put us below zero, this is non-conservative,
     # but I don't have any other options here since I can't modify the
     # integrator's logic
     if ql < 0.0
         ql = 0.0
-        F[:q_l] = ql
+        F.q_l = ql
     end
 
     qd = 1.0 - qv - ql - qr - qi
-    T = F[:T]
-    p = F[:p]
+    T = F.T
+    p = F.p
 
     # mixture density
     rho = calc_mixture_density(p, T, qd, qv, ql, qi, qr)
     # gas density
     rho_g = calc_mixture_density(p, T, qd, qv, 0.0, 0.0, 0.0)
-/
+
     dql_dt = _dql_dt__cond_evap(qv, ql, rho, p, T)
 
     qg = qv + qd
@@ -210,16 +210,17 @@ function dFdt_microphysics!(dFdt, F, p, t)
 
     dqr_dt = dqr_dt_autoc + dqr_dt_accre
     
-    dFdt[:q_l] = dql_dt - dqr_dt
-    dFdt[:q_v] = -dql_dt - dqr_dt_condevap
-    dFdt[:q_r] = dqr_dt + dqr_dt_condevap
+    dFdt.q_l = dql_dt - dqr_dt
+    dFdt.q_v = -dql_dt - dqr_dt_condevap
+    dFdt.q_r = dqr_dt + dqr_dt_condevap
 
 
-    for v in [:q_l, :q_v, :q_r]
-        if F[v] < 0.0
-            # @warn dFdt v
-        end
-    end
+    # NB: the expression below allocates on stack so only use for debugging
+    # for v in [:q_l, :q_v, :q_r]
+        # if F[v] < 0.0
+            # # @warn dFdt v
+        # end
+    # end
 
     if model_constraint == "isometric"
         c_m = calc_cv_m(F)
@@ -229,5 +230,5 @@ function dFdt_microphysics!(dFdt, F, p, t)
         throw("Model constraint mode '$(model_constraint)%s' not implemented")
     end
 
-    dFdt[:T] = L_v / c_m * dql_dt
+    dFdt.T = L_v / c_m * dql_dt
 end
