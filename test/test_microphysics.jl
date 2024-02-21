@@ -1,5 +1,6 @@
 using Test
 using CloudModels
+using ComponentArrays
 # using Unitful
 
 
@@ -23,6 +24,8 @@ using CloudModels
             else
                 @test dql_dt == 0.0u"1/s"
             end
+            trial = @benchmark CloudModels._dql_dt__cond_evap($qv, $ql, $rho, $p0, $T0)
+            @test trial.allocs == 0
         end
 
         @testset "rain cond-evap qr=$(qr) Sw=$(Sw)" for Sw in [0.9, 1.0, 1.1], qr in [0.0, 0.1e-3]
@@ -39,6 +42,8 @@ using CloudModels
             else
                 @test dqr_dt == 0.0u"1/s"
             end
+            trial = @benchmark CloudModels._dqr_dt__cond_evap($qv, $qr, $rho, $p0, $T0)
+            @test trial.allocs == 0
         end
 
         @testset "accretion qr=$(qr) ql=$(ql)" for qr in [0.0, 0.1e-3], ql in [0.0, 0.1e-3]
@@ -53,6 +58,8 @@ using CloudModels
             else
                 @test dqr_dt > 0.0u"1/s"
             end
+            trial = @benchmark CloudModels._dqr_dt__accretion($ql, $qg, $qr, $rho_g)
+            @test trial.allocs == 0
         end
     end
 
@@ -60,36 +67,61 @@ using CloudModels
         # start of super-saturated
         F = ComponentArray(T=T0, q_v=1.1*qv0_sat, q_l=0.0, q_r=0.0, q_i=0.0, p=p0)
         dFdt = ComponentArray(Dict([ v => 0.0 * unit(F[v] * u"1/s") for v in keys(F)]))
-        CloudModels.dFdt_microphysics!(dFdt, F, 0)
+        CloudModels.dFdt_microphysics!(dFdt, F, nothing, 0)
         # because we are super-saturated we expect condensation to occour which
         # should release heat and increase the amount of cloud condensate
         @test dFdt.T > 0u"K/s"
         @test dFdt.q_v < 0u"1/s"
         @test dFdt.q_l > 0u"1/s"
+        
+        trial = @benchmark CloudModels.dFdt_microphysics!($dFdt, $F, nothing, 0)
+        @test trial.allocs == 0
     end
 
     @testset "super-saturated /w condensate" begin
         # start of super-saturated
         F = ComponentArray(T=T0, q_v=1.1*qv0_sat, q_l=0.1, q_r=0.0, q_i=0.0, p=p0)
         dFdt = ComponentArray(Dict([ v => 0.0 * unit(F[v] * u"1/s") for v in keys(F)]))
-        CloudModels.dFdt_microphysics!(dFdt, F, 0)
+        CloudModels.dFdt_microphysics!(dFdt, F, nothing, 0)
         # because we are super-saturated we expect condensation to occour which
         # should release heat and increase the amount of cloud condensate
         @test dFdt.T > 0u"K/s"
         @test dFdt.q_v < 0u"1/s"
         @test dFdt.q_l > 0u"1/s"
         @test dFdt.q_r > 0u"1/s"
+
+        trial = @benchmark CloudModels.dFdt_microphysics!($dFdt, $F, nothing, 0)
+        @test trial.allocs == 0
     end
 
     @testset "sub-saturated" begin
         # start of sub-saturated with cloud-condensate present
         F = ComponentArray(T=T0, q_v=qv0_sat*0.9, q_l=1.0e-3, q_r=0.0, q_i=0.0, p=p0)
         dFdt = ComponentArray(Dict([ v => 0.0 * unit(F[v] * u"1/s") for v in keys(F)]))
-        CloudModels.dFdt_microphysics!(dFdt, F, 0)
+        CloudModels.dFdt_microphysics!(dFdt, F, nothing, 0)
         # because we are sub-saturated we expect condensation top occour which
         # should take heat and decrease the amount of cloud condensate
         @test dFdt.T < 0u"K/s"
         @test dFdt.q_v > 0u"1/s"
         @test dFdt.q_l < 0u"1/s"
+
+        trial = @benchmark CloudModels.dFdt_microphysics!($dFdt, $F, nothing, 0)
+        @test trial.allocs == 0
     end
+end
+
+
+@testset "heat-capacities" begin
+    qv0 = 0.0  # [kg/kg]
+    qr0 = 0.0
+    ql0 = 0.0
+    qi0 = 0.0
+    qd0 = 1.0 - qv0 - ql0 - qr0 - qi0
+    
+    F0 = ComponentArray(q_v=qv0, q_l=ql0, q_r=qr0, q_i=qi0)
+
+    cp_m0 = CloudModels.calc_cp_m(F0)
+    
+    trial = @benchmark CloudModels.calc_cp_m($F0)
+    @test trial.allocs == 0
 end

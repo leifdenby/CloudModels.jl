@@ -6,19 +6,19 @@ Constants:
     L_s: latent heat sublimation (vapour -> solid)
 """
 
-L_v = 2.5008e6 * u"J/kg"
-L_s = 2.8345e6 * u"J/kg"
-R_d = 287.05 * u"J/K/kg"
-R_v = 461.51 * u"J/K/kg"
-cp_d = 1005.46 * u"J/K/kg"
-cv_d = 717.60 * u"J/K/kg"
-cp_v = 1859.0 * u"J/K/kg"
-cv_v = 1402.5 * u"J/K/kg"
-cp_l = 4183.0 * u"J/K/kg"
-cv_l = cp_l # same as cp as liquid is assumed incompressible
-cp_i = 2103.0 * u"J/K/kg"  # taken from ATHAM
-rho_l = 1000.0 * u"kg/m^3"
-rho_i = 500.0 * u"kg/m^3"
-g = 9.80665 * u"m/s^2"
+const L_v = 2.5008e6 * u"J/kg"
+const L_s = 2.8345e6 * u"J/kg"
+const R_d = 287.05 * u"J/K/kg"
+const R_v = 461.51 * u"J/K/kg"
+const cp_d = 1005.46 * u"J/K/kg"
+const cv_d = 717.60 * u"J/K/kg"
+const cp_v = 1859.0 * u"J/K/kg"
+const cv_v = 1402.5 * u"J/K/kg"
+const cp_l = 4183.0 * u"J/K/kg"
+const cv_l = cp_l # same as cp as liquid is assumed incompressible
+const cp_i = 2103.0 * u"J/K/kg"  # taken from ATHAM
+const rho_l = 1000.0 * u"kg/m^3"
+const rho_i = 500.0 * u"kg/m^3"
+const g = 9.80665 * u"m/s^2"
 
 export R_d, R_v, L_v, L_s, cp_d, cv_d, cp_v, cv_v, rho_l, rho_i, g

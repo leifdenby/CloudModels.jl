@@ -258,7 +258,7 @@ function plume_equations!(dFdz, F, params, z)
 
     # dFdt_micro = ComponentArray(Dict([ v => 0.0 * unit(F[v] * u"1/s") for v in keys(F)]))
     dFdt_micro = copy(dFdz) .* 0.0
-    dFdt_microphysics!(dFdt_micro, F, 0.0u"s")
+    dFdt_microphysics!(dFdt_micro, F, params, 0.0u"s")
 
     # dF/dz = dF/dt * dt/dz = dF/dT / w
     dFdz_micro = dFdt_micro / w  # w = dz/dt

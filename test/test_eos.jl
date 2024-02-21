@@ -1,5 +1,6 @@
 using Test
 using CloudModels
+using BenchmarkTools
 # using Unitful
 
 @testset "EoS" begin
@@ -24,4 +25,7 @@ using CloudModels
     rho3 = CloudModels.calc_mixture_density(p0, T0, qd0-dq, qv0, ql0, qr0+dq, qi0)
     @test rho2 > rho0
     @test rho3 > rho0
+
+    trial = @benchmark CloudModels.calc_mixture_density($p0, $T0, $qd0, $qv0, $ql0, $qr0, $qi0)
+    @test trial.allocs == 0
 end

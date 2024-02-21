@@ -1,9 +1,9 @@
-p0vs= 611.2u"Pa"
-a0_lq= 17.67
-a1_lq= -32.19u"K"
-a0_ice= 22.587
-a1_ice= 0.7u"K"
-T00 = 273.15u"K"
+const p0vs = 611.2u"Pa"
+const a0_lq = 17.67
+const a1_lq = -32.19u"K"
+const a0_ice = 22.587
+const a1_ice = 0.7u"K"
+const T00 = 273.15u"K"
 
 
 function calc_pv_sat_liquid(T)
