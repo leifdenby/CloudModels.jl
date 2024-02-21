@@ -6,32 +6,24 @@ model_constraint = "isobaric"
 """
 Collection of microphysics routines for use with cloud-model integration.
 """
-function calc_cp_m(F)
-    qv = F[:q_v]
-    ql = F[:q_l]
-    qr = F[:q_r]
-    qi = F[:q_i]
-    qd = 1.0 - qv - ql - qr - qi
+function calc_cp_m(F::ComponentArray{T}) where T
+    q_d::T = 1.0 - F.q_v - F.q_l - F.q_r - F.q_i
 
-    if qi > 0.0
+    if F.q_i > 0.0
         throw("not implemented")
     end
 
-    return cp_d * qd + (ql + qr) * cp_l + qv * cp_v
+    return cp_d * q_d + (F.q_l + F.q_r) * cp_l + F.q_v * cp_v
 end
 
-function calc_cv_m(F)
-    qv = F[:q_v]
-    ql = F[:q_l]
-    qr = F[:q_r]
-    qi = F[:q_i]
-    qd = 1.0 - qv - ql - qr - qi
+function calc_cv_m(F::ComponentArray{T}) where T
+    q_d::T = 1.0 - F.q_v - F.q_l - F.q_r - F.q_i
 
-    if qi > 0.0
+    if F.q_i > 0.0
         throw("not implemented")
     end
 
-    return cv_d * qd + (ql + qr) * cv_l + qv * cv_v
+    return cv_d * q_d + (F.q_l + F.q_r) * cv_l + F.q_v * cv_v
 end
 
 """
@@ -208,7 +200,7 @@ function dFdt_microphysics!(dFdt, F, p, t)
     rho = calc_mixture_density(p, T, qd, qv, ql, qi, qr)
     # gas density
     rho_g = calc_mixture_density(p, T, qd, qv, 0.0, 0.0, 0.0)
-
+/
     dql_dt = _dql_dt__cond_evap(qv, ql, rho, p, T)
 
     qg = qv + qd
