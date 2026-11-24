@@ -1,3 +1,8 @@
+# NOTE: exploratory MCMC (Turing.jl) script, not part of the test suite
+# (`runtests.jl`). It is currently broken: `integration_common.jl` (which
+# provided `make_initial_condition` and `setup_callbacks`) was deleted in
+# 5dfa13a ("refactor to plume + parcel equations"), and despite its name it
+# still integrates `parcel_equations!` rather than `plume_equations!`.
 using Test
 using CloudModels
 #using Unitful
