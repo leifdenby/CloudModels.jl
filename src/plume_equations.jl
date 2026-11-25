@@ -181,6 +181,10 @@ end
 
 
 function plume_equations!(dFdz, F, params, z)
+    # the tendencies below are partly accumulated (`+=`) into `dFdz`, and ODE
+    # solvers reuse the derivative array between calls, so start from zero
+    dFdz .= 0.0
+
     # extract the parameters
     gamma = get(params, :γ, 1.0)
     C_D = get(params, :C_D, 0.506)
