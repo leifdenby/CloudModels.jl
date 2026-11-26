@@ -7,8 +7,8 @@ State variables:
     r: cloud radius
     rho_c: cloud density
 """
-function calc_dw_dz(p, w_c, r_c, T_c, qd_c, qv_c, ql_c, qi_c, qr_c, rho_e, mu, gamma, C_D)
-    rho_c = calc_mixture_density(p, T_c, qd_c, qv_c, ql_c, qi_c, qr_c)
+function calc_dw_dz(p, w_c, r_c, T_c, qd_c, qv_c, ql_c, qr_c, qi_c, rho_e, mu, gamma, C_D)
+    rho_c = calc_mixture_density(p, T_c, qd_c, qv_c, ql_c, qr_c, qi_c)
     B = (rho_e - rho_c) / rho_e
 
     return (
@@ -123,7 +123,7 @@ function calc_dr_dz(
 
     # in-cloud mixture density
     rho_c = calc_mixture_density(
-        p, T_c, qd_c, qv_c, ql_c, qi_c, qr_c
+        p, T_c, qd_c, qv_c, ql_c, qr_c, qi_c
     )
 
     # in-cloud gas density
@@ -219,7 +219,7 @@ function plume_equations!(dFdz, F, params, z)
     rho_e = calc_mixture_density(p, T_e, qd_e, qv_e, 0.0, 0.0, 0.0)
 
     # calculate entrainment rate
-    rho_c = calc_mixture_density(p, T, q_d, q_v, q_l, q_i, q_r)
+    rho_c = calc_mixture_density(p, T, q_d, q_v, q_l, q_r, q_i)
     B = (rho_e - rho_c) / rho_e
     
     mu = beta / r

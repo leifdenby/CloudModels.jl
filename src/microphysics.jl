@@ -197,7 +197,7 @@ function dFdt_microphysics!(dFdt, F, p, t)
     p = F.p
 
     # mixture density
-    rho = calc_mixture_density(p, T, qd, qv, ql, qi, qr)
+    rho = calc_mixture_density(p, T, qd, qv, ql, qr, qi)
     # gas density
     rho_g = calc_mixture_density(p, T, qd, qv, 0.0, 0.0, 0.0)
 
