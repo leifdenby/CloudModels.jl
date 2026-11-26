@@ -30,7 +30,7 @@ temperature dependence (thesis Ch 3, below eqn 3.33). Returns `(L_v, L_s, L_f)`.
 function calc_latent_heats(T)
     L_v_ = L_v + (cp_v - cp_l) * (T - T00)
     L_s_ = L_s + (cp_v - cp_i) * (T - T00)
-    L_f_ = L_v + (cp_l - cp_i) * (T - T00)
+    L_f_ = L_f + (cp_l - cp_i) * (T - T00)
     return L_v_, L_s_, L_f_
 end
 
