@@ -242,6 +242,27 @@ function calc_dqr_dz__rainout(rho_c, q_r, w, N0, l_pr)
 end
 
 
+"""
+    calc_entrainment_rate(params, r, z)
+
+Entrainment rate μ [1/m] at height `z` for a plume of radius `r`. By
+default `μ = β/r` with `β = params[:β]` (default 0.2). If `params` contains
+`:μ` that is used instead, as a prescribed entrainment-rate profile: either a
+function of height, `μ(z)`, or a constant. Giving both `:μ` and `:β` is an
+error.
+"""
+function calc_entrainment_rate(params, r, z)
+    if haskey(params, :μ)
+        if haskey(params, :β)
+            throw(ArgumentError("give either a prescribed μ or β, not both"))
+        end
+        μ = params[:μ]
+        return μ isa Function ? μ(z) : μ
+    else
+        return get(params, :β, 0.2) / r
+    end
+end
+
 function plume_equations!(dFdz, F, params, z)
     # extract the parameters
     gamma = get(params, :γ, 1.0)
@@ -249,7 +270,6 @@ function plume_equations!(dFdz, F, params, z)
     l_pr = get(params, :l_pr, 100.0u"m")
     # droplet-size distribution constant
     N0 = get(params, :N0, 1.0e7u"m^-4")  # [m^-4]
-    beta = get(params, :β, 0.2)
     # entrainment switches, with the same names and defaults as in pyclouds'
     # `FullThermodynamicsCloudEquations`
     entrain_hydrometeors = get(params, :entrain_hydrometeors, true)
@@ -286,7 +306,7 @@ function plume_equations!(dFdz, F, params, z)
     rho_c = calc_mixture_density(p, T, q_d, q_v, q_l, q_i, q_r)
     B = (rho_e - rho_c) / rho_e
     
-    mu = beta / r
+    mu = calc_entrainment_rate(params, r, z)
 
     # 1. Estimate change in vertical velocity with initial state
     dwdz = calc_dw_dz(p, w, r, T, q_d, q_v, q_l, q_r, q_i, rho_e, mu, gamma, C_D)
