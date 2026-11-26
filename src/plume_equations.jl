@@ -34,7 +34,10 @@ function calc_dT_dz(
     dqv_c__dz,
     T_e,
     qv_e,
-    mu,
+    mu;
+    entrain_moist_static_energy=true,
+    entrain_liquid_static_energy=false,
+    temperature_dependent_latent_heats=true,
 )
     """
     State variables:
@@ -45,16 +48,44 @@ function calc_dT_dz(
 
         qd_c, qv_c, ql_c, qi_c: environment (constant) dry air, water vapour, liquid water, ice
         T_e: environment absolute temp
-    """
 
-    # latent-heat corrected for change in temperature
-    L_v_ = L_v + (cp_v - cp_l) * (T_c - T00)
-    L_s_ = L_s + (cp_v - cp_i) * (T_c - T00)
-    L_f_ = L_v + (cp_l - cp_i) * (T_c - T00)
+    Switches (as in pyclouds' `FullThermodynamicsCloudEquations`):
+        entrain_moist_static_energy: entrain moist static energy (default)
+        entrain_liquid_static_energy: entrain liquid static energy instead
+        (if neither is set, only the dry-adiabatic -g/cp_d is returned and
+        the latent heating must come from the microphysics)
+        temperature_dependent_latent_heats: correct the latent heats for
+        their temperature dependence (default)
+    """
+    if entrain_moist_static_energy && entrain_liquid_static_energy
+        throw("Can only entrain either moist or liquid static energy")
+    end
+
+    if temperature_dependent_latent_heats
+        # latent-heat corrected for change in temperature
+        L_v_ = L_v + (cp_v - cp_l) * (T_c - T00)
+        L_s_ = L_s + (cp_v - cp_i) * (T_c - T00)
+        L_f_ = L_v + (cp_l - cp_i) * (T_c - T00)
+    else
+        L_v_ = L_v
+        L_s_ = L_s
+        # NB: pyclouds uses L_v here too; this only enters the ice terms, and
+        # ice isn't implemented (see below)
+        L_f_ = L_s - L_v
+    end
 
     # equations below don't work with ice yet
     if qi_c > 0.0
         throw("ice not implemented yet")
+    end
+
+    if entrain_liquid_static_energy
+        return _calc_dT_dz__liquid_static_energy(
+            T_c, qd_c, qv_c, ql_c, qi_c, dql_c__dz, dqi_c__dz, T_e, qv_e, mu,
+            L_v_, L_s_,
+        )
+    elseif !entrain_moist_static_energy
+        return -g / cp_d
     end
 
     c_cm_p = cp_d * qd_c + cp_l * (qv_c + ql_c + qi_c)
@@ -85,6 +116,37 @@ function calc_dT_dz(
     c_cm = cp_d * qd_c + qv_c * cp_v + ql_c * cp_l + qi_c * cp_i
 
     return -g / c_cm + mu * Ds / c_cm - 1.0 / c_cm * dedz_q
+end
+
+"""
+Temperature tendency when entraining liquid static energy, ported from the
+`entrain_liquid_static_energy` branch of `dT_dz` in pyclouds'
+`FullThermodynamicsCloudEquations`.
+"""
+function _calc_dT_dz__liquid_static_energy(
+    T_c, qd_c, qv_c, ql_c, qi_c, dql_c__dz, dqi_c__dz, T_e, qv_e, mu, L_v_, L_s_
+)
+    # heat capacity of mixture with all moisture in the vapour phase
+    # (pyclouds: "qr_c = 0.0  # TODO: is this reasonable?")
+    qr_c = 0.0
+    c_cm_p = cp_d * qd_c + cp_v * (qv_c + ql_c + qr_c + qi_c)
+
+    qd_e = 1.0 - qv_e
+    ql_e, qr_e, qi_e = 0.0, 0.0, 0.0
+
+    c_em_p = cp_d * qd_e + cp_v * (qv_e + ql_e + qr_e + qi_e)
+
+    # difference in environment and cloud liquid static energy (pyclouds
+    # notes the formulation including ice appears wrong, so only liquid is
+    # included)
+    Ds = (c_em_p * T_e - ql_e * L_v_) - (c_cm_p * T_c - ql_c * L_v_)
+
+    return (
+        -g / c_cm_p
+        + mu * Ds / c_cm_p
+        + L_v_ / c_cm_p * dql_c__dz
+        + L_s_ / c_cm_p * dqi_c__dz
+    )
 end
 
 function calc_dr_dz(
@@ -188,6 +250,12 @@ function plume_equations!(dFdz, F, params, z)
     # droplet-size distribution constant
     N0 = get(params, :N0, 1.0e7u"m^-4")  # [m^-4]
     beta = get(params, :β, 0.2)
+    # entrainment switches, with the same names and defaults as in pyclouds'
+    # `FullThermodynamicsCloudEquations`
+    entrain_hydrometeors = get(params, :entrain_hydrometeors, true)
+    entrain_moist_static_energy = get(params, :entrain_moist_static_energy, true)
+    entrain_liquid_static_energy = get(params, :entrain_liquid_static_energy, false)
+    temperature_dependent_latent_heats = get(params, :temperature_dependent_latent_heats, true)
 
     try
     environment = params[:environment]
@@ -231,28 +299,30 @@ function plume_equations!(dFdz, F, params, z)
     # dFdz_entrain__q = zero(dFdz)
     dFdz_entrain__q = copy(dFdz) .* 0.0
 
-    # dqd_dz__ent = mu/rho_c*(qd_e*rho_e - q_d*rho_c)
-    dqd_dz__ent = mu * (qd_e - q_d)
-    # dFdz_entrain__q[:q_v] = -q_v*dqd_dz__ent
-    # dFdz_entrain__q[:q_l] = -q_l*dqd_dz__ent
-    # dFdz_entrain__q[:q_r] = -q_r*dqd_dz__ent
-    # dFdz_entrain__q[:q_i] = -q_i*dqd_dz__ent
+    if entrain_hydrometeors
+        # dqd_dz__ent = mu/rho_c*(qd_e*rho_e - q_d*rho_c)
+        dqd_dz__ent = mu * (qd_e - q_d)
+        # dFdz_entrain__q[:q_v] = -q_v*dqd_dz__ent
+        # dFdz_entrain__q[:q_l] = -q_l*dqd_dz__ent
+        # dFdz_entrain__q[:q_r] = -q_r*dqd_dz__ent
+        # dFdz_entrain__q[:q_i] = -q_i*dqd_dz__ent
 
-    # this formulation gives a strong impact of entrainment on
-    # hydrometeors, seems best I think
-    dFdz_entrain__q[:q_v] = mu * (qv_e - q_v)
-    dFdz_entrain__q[:q_l] = mu * (ql_e - q_l)
-    dFdz_entrain__q[:q_r] = mu * (qr_e - q_r)
-    dFdz_entrain__q[:q_i] = mu * (qi_e - q_i)
+        # this formulation gives a strong impact of entrainment on
+        # hydrometeors, seems best I think
+        dFdz_entrain__q[:q_v] = mu * (qv_e - q_v)
+        dFdz_entrain__q[:q_l] = mu * (ql_e - q_l)
+        dFdz_entrain__q[:q_r] = mu * (qr_e - q_r)
+        dFdz_entrain__q[:q_i] = mu * (qi_e - q_i)
 
-    # Old formulation: not exactly sure why this doesn't work, but the
-    # above is from the perspective of entraining dry air instead of
-    # detraining hydrometeors, maybe there's something important here?
+        # Old formulation: not exactly sure why this doesn't work, but the
+        # above is from the perspective of entraining dry air instead of
+        # detraining hydrometeors, maybe there's something important here?
 
-    # dFdz_entrain__q[:q_v] = mu/rho_c*(qv_e*rho_e - q_v*rho_c)
-    # dFdz_entrain__q[:q_l] = mu/rho_c*(ql_e*rho_e - q_l*rho_c)
-    # dFdz_entrain__q[:q_r] = mu/rho_c*(qr_e*rho_e - q_r*rho_c)
-    # dFdz_entrain__q[:q_i] = mu/rho_c*(qi_e*rho_e - q_i*rho_c)
+        # dFdz_entrain__q[:q_v] = mu/rho_c*(qv_e*rho_e - q_v*rho_c)
+        # dFdz_entrain__q[:q_l] = mu/rho_c*(ql_e*rho_e - q_l*rho_c)
+        # dFdz_entrain__q[:q_r] = mu/rho_c*(qr_e*rho_e - q_r*rho_c)
+        # dFdz_entrain__q[:q_i] = mu/rho_c*(qi_e*rho_e - q_i*rho_c)
+    end
 
     # 2. estimate new state from phase changes predicted by microphysics
 
@@ -270,6 +340,12 @@ function plume_equations!(dFdz, F, params, z)
         dFdz[v] += dFdz_micro[v]
         dFdz[v] += dFdz_entrain__q[v]
     end
+    # ...unless no static energy is entrained, in which case the temperature
+    # equation only gives the dry-adiabatic cooling and the latent heating
+    # comes from the microphysics (as in pyclouds)
+    if !(entrain_moist_static_energy || entrain_liquid_static_energy)
+        dFdz[:T] += dFdz_micro[:T]
+    end
 
     # 3. Estimate temperature change forgetting about phase-changes for now
     # (i.e. considering only adiabatic adjustment and entrainment)
@@ -280,7 +356,12 @@ function plume_equations!(dFdz, F, params, z)
     dqv_c__dz = dFdz[:q_v]
     ql_c = q_l + q_r
 
-    dTdz_s = calc_dT_dz(r, T, q_d, q_v, ql_c, q_i, dql_c__dz, dqi_c__dz, dqv_c__dz, T_e, qv_e, mu)
+    dTdz_s = calc_dT_dz(
+        r, T, q_d, q_v, ql_c, q_i, dql_c__dz, dqi_c__dz, dqv_c__dz, T_e, qv_e, mu;
+        entrain_moist_static_energy=entrain_moist_static_energy,
+        entrain_liquid_static_energy=entrain_liquid_static_energy,
+        temperature_dependent_latent_heats=temperature_dependent_latent_heats,
+    )
 
     dFdz[:T] += dTdz_s
     dTdz = dFdz[:T]
