@@ -4,10 +4,12 @@ Constants:
     cp_v: heat capacity of liquid water at constant pressure
     L_v: latent heat of vapourisation (vapour -> liquid)
     L_s: latent heat sublimation (vapour -> solid)
+    L_f: latent heat of fusion (liquid -> solid), L_f = L_s - L_v
 """
 
 const L_v = 2.5008e6 * u"J/kg"
 const L_s = 2.8345e6 * u"J/kg"
+const L_f = L_s - L_v
 const R_d = 287.05 * u"J/K/kg"
 const R_v = 461.51 * u"J/K/kg"
 const cp_d = 1005.46 * u"J/K/kg"
@@ -21,4 +23,4 @@ const rho_l = 1000.0 * u"kg/m^3"
 const rho_i = 500.0 * u"kg/m^3"
 const g = 9.80665 * u"m/s^2"
 
-export R_d, R_v, L_v, L_s, cp_d, cv_d, cp_v, cv_v, rho_l, rho_i, g
+export R_d, R_v, L_v, L_s, L_f, cp_d, cv_d, cp_v, cv_v, rho_l, rho_i, g
