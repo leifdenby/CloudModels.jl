@@ -22,6 +22,18 @@ function calc_dw_dz(p, w_c, r_c, T_c, qd_c, qv_c, ql_c, qr_c, qi_c, rho_e, mu, g
     )
 end
 
+"""
+Latent heats of vaporisation (vapour -> liquid), sublimation (vapour -> ice)
+and fusion (liquid -> ice) at temperature `T`, corrected for their
+temperature dependence (thesis Ch 3, below eqn 3.33). Returns `(L_v, L_s, L_f)`.
+"""
+function calc_latent_heats(T)
+    L_v_ = L_v + (cp_v - cp_l) * (T - T00)
+    L_s_ = L_s + (cp_v - cp_i) * (T - T00)
+    L_f_ = L_v + (cp_l - cp_i) * (T - T00)
+    return L_v_, L_s_, L_f_
+end
+
 function calc_dT_dz(
     r_c,
     T_c,
@@ -48,9 +60,7 @@ function calc_dT_dz(
     """
 
     # latent-heat corrected for change in temperature
-    L_v_ = L_v + (cp_v - cp_l) * (T_c - T00)
-    L_s_ = L_s + (cp_v - cp_i) * (T_c - T00)
-    L_f_ = L_v + (cp_l - cp_i) * (T_c - T00)
+    L_v_, L_s_, L_f_ = calc_latent_heats(T_c)
 
     # equations below don't work with ice yet
     if qi_c > 0.0
